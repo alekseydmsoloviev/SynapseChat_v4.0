@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header>
+        <h1>Admin Panel</h1>
+    </header>
+
+    <section id="server-config">
+        <h2>Server Configuration</h2>
+        <form method="post" action="/admin/config">
+            <label for="port">Port:</label>
+            <input type="text" id="port" name="port" value="{{ port }}">
+
+            <label for="limit">Daily Limit:</label>
+            <input type="text" id="limit" name="limit" value="{{ limit }}">
+
+            <button type="submit">Update Config</button>
+        </form>
+    </section>
+
+   <!-- внутри <body> -->
+    <section id="user-management">
+      <h2>User Management</h2>
+      <form method="post" action="/admin/user">
+        <label for="username_new">Username:</label>
+        <input type="text" id="username_new" name="username_new" required>
+
+        <label for="password_new">Password:</label>
+        <input type="password" id="password_new" name="password_new" required>
+
+        <label for="daily_limit">Daily Limit:</label>
+        <input type="number" id="daily_limit" name="daily_limit" value="1000" required>
+
+        <button type="submit">Create/Update User</button>
+      </form>
+
+      <h3>Existing Users</h3>
+      <table>
+        <thead>
+          <tr><th>Username</th><th>Admin?</th><th>Daily Limit</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+          {% for u in users %}
+          <tr>
+            <td>{{ u.username }}</td>
+            <td>{{ "✔" if u.is_admin else "" }}</td>
+            <td>{{ u.daily_limit }}</td>
+            <td>
+              {% if not u.is_admin %}
+              <form method="post" action="/admin/user/delete" style="display:inline">
+                <input type="hidden" name="username_del" value="{{ u.username }}">
+                <button type="submit">Delete</button>
+              </form>
+              {% else %}
+                —
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+
+    <section id="models">
+        <h2>Installed Models</h2>
+        <ul>
+            {% for m in models %}
+            <li>{{ m }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+
+    <section id="sessions">
+        <h2>Chat Sessions</h2>
+        <table>
+            <thead>
+                <tr><th>Session ID</th><th>Created At</th><th>Message Count</th></tr>
+            </thead>
+            <tbody>
+                {% for s in sessions %}
+                <tr>
+                    <td>{{ s.session_id }}</td>
+                    <td>{{ s.created_at }}</td>
+                    <td>{{ msg_counts[s.session_id] }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section id="database-clear">
+      <h2>Clear Database</h2>
+      <form method="post" action="/admin/clear" onsubmit="return confirm('Вы уверены? Это удалит ВСЕ данные!');">
+        <button type="submit">Очистить базу данных</button>
+      </form>
+    </section>
+
+    <section id="server-control">
+        <h2>Server Control</h2>
+        <form method="post" action="/admin/restart">
+            <button type="submit">Restart API Server</button>
+        </form>
+    </section>
+
+    <script src="/static/admin.js"></script>
+</body>
+</html>
