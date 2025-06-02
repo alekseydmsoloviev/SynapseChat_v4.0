@@ -5,6 +5,7 @@ import secrets
 import base64
 import asyncio
 import psutil
+from typing import Optional, Set
 
 from fastapi import APIRouter, Request, Depends, Form, status, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import (
@@ -21,7 +22,13 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import User, RateLimit, Session as SessionModel, Message
-from app.utils.ollama import list_installed_models, remove_model
+from app.utils.ollama import (
+    list_installed_models,
+    remove_model,
+    list_remote_base_models,
+    list_model_variants,
+    install_model,
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -31,7 +38,21 @@ LOG_PATH = os.getenv("LOG_PATH", os.path.join(os.getcwd(), "app.log"))
 security = HTTPBasic()
 
 # Глобальный процесс API
-api_process: subprocess.Popen = None
+# Active API process
+api_process: Optional[subprocess.Popen] = None
+# Основной event loop приложения
+event_loop: Optional[asyncio.AbstractEventLoop] = None
+# Подключённые WebSocket-клиенты администратора
+ws_clients: Set[WebSocket] = set()
+
+
+async def broadcast_progress(message: str) -> None:
+    """Send progress line to all connected admin WebSocket clients."""
+    for ws in list(ws_clients):
+        try:
+            await ws.send_json({"type": "progress", "data": message})
+        except Exception:
+            ws_clients.discard(ws)
 
 
 def get_current_admin(creds: HTTPBasicCredentials = Depends(security)):
@@ -52,7 +73,13 @@ def get_current_admin(creds: HTTPBasicCredentials = Depends(security)):
 @router.on_event("startup")
 def start_api_server():
     """Запуск API-процесса при старте админ-приложения."""
-    global api_process
+    global api_process, event_loop
+    event_loop = asyncio.get_event_loop()
+    # Создаём файл логов, если его ещё нет
+    try:
+        open(LOG_PATH, "a").close()
+    except Exception:
+        pass
     # Если API уже запущен, не запускаем второй процесс
     if api_process is not None:
         return
@@ -327,6 +354,55 @@ def api_installed_models(admin: str = Depends(get_current_admin)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/admin/api/models/available")
+def api_available_models(admin: str = Depends(get_current_admin)):
+    """List base models available for installation."""
+    try:
+        models = list_remote_base_models()
+        return JSONResponse(models)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/admin/api/models/{name}/variants")
+def api_model_variants(name: str, admin: str = Depends(get_current_admin)):
+    """List variants for a specific model."""
+    try:
+        variants = list_model_variants(name)
+        return JSONResponse(variants)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/admin/api/models/{name}/install")
+def api_install_model(name: str, admin: str = Depends(get_current_admin)):
+    """Install a model from the registry."""
+    def _progress(line: str) -> None:
+        try:
+            with open(LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(line + "\n")
+        except Exception:
+            pass
+        if event_loop:
+            event_loop.call_soon_threadsafe(asyncio.create_task, broadcast_progress(line))
+
+    try:
+        install_model(name, progress_callback=_progress)
+        return JSONResponse({"message": f"Model '{name}' installed."})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/admin/api/models/{name}")
+def api_remove_model(name: str, admin: str = Depends(get_current_admin)):
+    """Remove an installed model."""
+    try:
+        remove_model(name)
+        return JSONResponse({"message": f"Model '{name}' removed."})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/admin/api/sessions")
 def api_list_sessions(admin: str = Depends(get_current_admin)):
     """Return list of chat sessions with message counts."""
@@ -453,6 +529,7 @@ async def admin_ws(websocket: WebSocket):
         return
 
     await websocket.accept()
+    ws_clients.add(websocket)
     try:
         while True:
             cpu = psutil.cpu_percent()
@@ -469,6 +546,7 @@ async def admin_ws(websocket: WebSocket):
                 models = []
             await websocket.send_json(
                 {
+                    "type": "metrics",
                     "cpu": cpu,
                     "memory": memory,
                     "users": users,
@@ -479,4 +557,24 @@ async def admin_ws(websocket: WebSocket):
             await asyncio.sleep(5)
     except WebSocketDisconnect:
         pass
+    finally:
+        ws_clients.discard(websocket)
+
+
+@router.on_event("shutdown")
+def cleanup_on_shutdown():
+    """Terminate API process and remove log file."""
+    global api_process
+    if api_process and api_process.poll() is None:
+        try:
+            api_process.terminate()
+            api_process.wait(timeout=5)
+        except Exception:
+            pass
+        api_process = None
+    if os.path.exists(LOG_PATH):
+        try:
+            os.remove(LOG_PATH)
+        except Exception:
+            pass
 

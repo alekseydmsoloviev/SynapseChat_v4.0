@@ -4,7 +4,7 @@ Wrapper for invoking Ollama CLI commands and scraping to manage and chat with mo
 """
 import subprocess
 import re
-from typing import List, Optional
+from typing import List, Optional, Callable
 
 # Optional imports for remote model listing
 try:
@@ -140,18 +140,35 @@ def list_installed_models() -> List[str]:
     return models
 
 
-def install_model(name: str) -> None:
+def install_model(name: str, progress_callback: Optional[Callable[[str], None]] = None) -> None:
+    """Install a model from the public registry and stream progress.
+
+    If ``progress_callback`` is provided, each line of output from ``ollama pull``
+    is passed to it. Otherwise the lines are printed to stdout.
+    Raises ``RuntimeError`` on failure.
     """
-    Install a model from the public registry by its name.
-    Raises RuntimeError on failure.
-    """
-    result = subprocess.run(
+    proc = subprocess.Popen(
         [OLLAMA_CMD, "pull", name],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
+        bufsize=1,
     )
-    if result.returncode != 0:
-        raise RuntimeError(f"Error installing model '{name}': {result.stderr.strip()}")
+    output_lines = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        line = line.rstrip()
+        output_lines.append(line)
+        if progress_callback:
+            progress_callback(line)
+        else:
+            print(line)
+            sys.stdout.flush()
+    proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Error installing model '{name}': {''.join(output_lines).strip()}"
+        )
 
 
 def remove_model(name: str) -> None:
