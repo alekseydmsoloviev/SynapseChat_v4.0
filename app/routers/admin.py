@@ -4,7 +4,7 @@ import subprocess
 import secrets
 
 from fastapi import APIRouter, Request, Depends, Form, status, HTTPException
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from dotenv import load_dotenv, dotenv_values, set_key
@@ -217,3 +217,135 @@ def restart_api_server(admin: str = Depends(get_current_admin)):
     ]
     api_process = subprocess.Popen(cmd)
     return RedirectResponse("/admin", status_code=status.HTTP_303_SEE_OTHER)
+
+
+# ----- JSON API Endpoints -----
+
+
+@router.get("/admin/api/users")
+def api_list_users(admin: str = Depends(get_current_admin)):
+    """Return list of users."""
+    db: Session = SessionLocal()
+    try:
+        users = db.query(User).all()
+        payload = [
+            {
+                "username": u.username,
+                "is_admin": u.is_admin,
+                "daily_limit": u.daily_limit,
+            }
+            for u in users
+        ]
+        return JSONResponse(payload)
+    finally:
+        db.close()
+
+
+@router.post("/admin/api/users")
+def api_create_or_update_user(payload: dict, admin: str = Depends(get_current_admin)):
+    """Create or update a user."""
+    username = payload.get("username")
+    password = payload.get("password")
+    daily_limit = int(payload.get("daily_limit", 1000))
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="username and password required")
+    db: Session = SessionLocal()
+    try:
+        u = db.query(User).filter(User.username == username).first()
+        if u:
+            u.password_hash = password
+            u.daily_limit = daily_limit
+        else:
+            u = User(
+                username=username,
+                password_hash=password,
+                is_admin=False,
+                daily_limit=daily_limit,
+            )
+            db.add(u)
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"message": f"User '{username}' created/updated."})
+
+
+@router.delete("/admin/api/users/{username}")
+def api_delete_user(username: str, admin: str = Depends(get_current_admin)):
+    """Delete a non-admin user."""
+    db: Session = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        if user.is_admin:
+            raise HTTPException(status_code=403, detail="Cannot delete admin user")
+        db.delete(user)
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"message": f"User '{username}' deleted."})
+
+
+@router.get("/admin/api/config")
+def api_get_config(admin: str = Depends(get_current_admin)):
+    """Return server configuration from .env."""
+    cfg = dotenv_values(ENV_PATH)
+    port = cfg.get("PORT", os.getenv("PORT", "8000"))
+    limit = cfg.get("DAILY_LIMIT", os.getenv("DAILY_LIMIT", "1000"))
+    return JSONResponse({"port": port, "daily_limit": limit})
+
+
+@router.post("/admin/api/config")
+def api_update_config(payload: dict, admin: str = Depends(get_current_admin)):
+    """Update configuration values in .env."""
+    port = str(payload.get("port", "8000"))
+    limit = str(payload.get("daily_limit", "1000"))
+    open(ENV_PATH, "a").close()
+    set_key(ENV_PATH, "PORT", port)
+    set_key(ENV_PATH, "DAILY_LIMIT", limit)
+    return JSONResponse({"message": "Configuration updated."})
+
+
+@router.get("/admin/api/models")
+def api_installed_models(admin: str = Depends(get_current_admin)):
+    """List installed models."""
+    try:
+        models = list_installed_models()
+        return JSONResponse(models)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/admin/api/sessions")
+def api_list_sessions(admin: str = Depends(get_current_admin)):
+    """Return list of chat sessions with message counts."""
+    db: Session = SessionLocal()
+    try:
+        sessions = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
+        msg_counts = {
+            s.session_id: db.query(Message)
+            .filter(Message.session_id == s.session_id, Message.username == s.username)
+            .count()
+            for s in sessions
+        }
+        payload = [
+            {
+                "username": s.username,
+                "session_id": s.session_id,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "message_count": msg_counts[s.session_id],
+            }
+            for s in sessions
+        ]
+        return JSONResponse(payload)
+    finally:
+        db.close()
+
+
+@router.post("/admin/api/restart")
+def api_restart_server(admin: str = Depends(get_current_admin)):
+    """Restart the API server and return JSON response."""
+    # Reuse the logic from the HTML version but return JSON
+    restart_api_server(admin)
+    return JSONResponse({"message": "API server restarted."})
+
