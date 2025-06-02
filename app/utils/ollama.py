@@ -60,7 +60,7 @@ def list_remote_models() -> List[str]:
             if detail.status_code == 200:
                 text = detail.text
                 # Search for occurrences like "gemma3:1b" within the page
-                pattern = rf"{name}:[^\"'\\s<]+"
+                pattern = rf"{name}:[^\s\"'<]+"
                 matches = set(re.findall(pattern, text, flags=re.IGNORECASE))
                 variants.extend(sorted(matches))
         except Exception:
@@ -114,7 +114,7 @@ def list_model_variants(name: str) -> List[str]:
         )
 
     text = resp.text
-    pattern = rf"{re.escape(name)}:[^\"'\\s<]+"
+    pattern = rf"{re.escape(name)}:[^\s\"'<]+"
     matches = set(re.findall(pattern, text, flags=re.IGNORECASE))
     return sorted(matches) if matches else [name]
 
