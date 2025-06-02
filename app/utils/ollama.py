@@ -3,6 +3,7 @@
 Wrapper for invoking Ollama CLI commands and scraping to manage and chat with models.
 """
 import subprocess
+import sys
 import re
 from typing import List, Optional
 
@@ -59,10 +60,12 @@ def list_remote_models() -> List[str]:
             if detail.status_code == 200:
                 text = detail.text
                 # Search for occurrences like "gemma3:1b" within the page
+
                 # Variant names usually consist of alphanumerics, dashes or dots
                 # like ``1b`` or ``12b-it-qat``. To avoid capturing surrounding
                 # markup or whitespace we restrict the allowed characters.
                 pattern = rf"{re.escape(name)}:([A-Za-z0-9_.-]+)"
+
                 matches = set(re.findall(pattern, text, flags=re.IGNORECASE))
                 variants.extend(sorted(f"{name}:{m}" for m in matches))
                 if f"{name}:latest" not in variants:
@@ -118,7 +121,9 @@ def list_model_variants(name: str) -> List[str]:
         )
 
     text = resp.text
+
     pattern = rf"{re.escape(name)}:([A-Za-z0-9_.-]+)"
+
     matches = set(re.findall(pattern, text, flags=re.IGNORECASE))
     variants = sorted(f"{name}:{m}" for m in matches)
     if f"{name}:latest" not in variants:
@@ -149,17 +154,26 @@ def list_installed_models() -> List[str]:
 
 
 def install_model(name: str) -> None:
-    """
-    Install a model from the public registry by its name.
-    Raises RuntimeError on failure.
-    """
-    result = subprocess.run(
+    """Install a model from the public registry and print progress."""
+    proc = subprocess.Popen(
         [OLLAMA_CMD, "pull", name],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         text=True,
+        bufsize=1,
     )
-    if result.returncode != 0:
-        raise RuntimeError(f"Error installing model '{name}': {result.stderr.strip()}")
+    output_lines = []
+    assert proc.stdout is not None
+    for line in proc.stdout:
+        line = line.rstrip()
+        print(line)
+        sys.stdout.flush()
+        output_lines.append(line)
+    proc.wait()
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Error installing model '{name}': {''.join(output_lines).strip()}"
+        )
 
 
 def remove_model(name: str) -> None:

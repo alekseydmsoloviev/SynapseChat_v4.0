@@ -59,6 +59,11 @@ def get_current_admin(creds: HTTPBasicCredentials = Depends(security)):
 def start_api_server():
     """Запуск API-процесса при старте админ-приложения."""
     global api_process
+    # Создаём файл логов, если его ещё нет
+    try:
+        open(LOG_PATH, "a").close()
+    except Exception:
+        pass
     # Если API уже запущен, не запускаем второй процесс
     if api_process is not None:
         return
@@ -525,4 +530,22 @@ async def admin_ws(websocket: WebSocket):
             await asyncio.sleep(5)
     except WebSocketDisconnect:
         pass
+
+
+@router.on_event("shutdown")
+def cleanup_on_shutdown():
+    """Terminate API process and remove log file."""
+    global api_process
+    if api_process and api_process.poll() is None:
+        try:
+            api_process.terminate()
+            api_process.wait(timeout=5)
+        except Exception:
+            pass
+        api_process = None
+    if os.path.exists(LOG_PATH):
+        try:
+            os.remove(LOG_PATH)
+        except Exception:
+            pass
 
