@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List, Dict
 
 from app.routers.auth import get_current_username
+from app.routers.admin import get_current_admin
 from app.utils.ollama import (
     list_remote_base_models,
     list_model_variants,
@@ -20,7 +21,7 @@ from app.utils.ollama import (
 router = APIRouter()
 
 @router.get("", response_model=Dict[str, List[str]])
-async def get_models(username: str = Depends(get_current_username)) -> Dict[str, List[str]]:
+async def get_models(username: str = Depends(get_current_admin)) -> Dict[str, List[str]]:
     """Возвращает списки доступных и локально установленных моделей"""
     try:
         available = list_remote_base_models()
@@ -34,7 +35,7 @@ async def get_models(username: str = Depends(get_current_username)) -> Dict[str,
 
 
 @router.get("/available", response_model=List[str])
-async def available_models(username: str = Depends(get_current_username)) -> List[str]:
+async def available_models(username: str = Depends(get_current_admin)) -> List[str]:
     """Список моделей, доступных для установки (без вариантов)."""
     try:
         return list_remote_base_models()
@@ -58,7 +59,7 @@ async def installed_models(username: str = Depends(get_current_username)) -> Lis
 
 
 @router.get("/{name}/variants", response_model=List[str])
-async def model_variants(name: str, username: str = Depends(get_current_username)) -> List[str]:
+async def model_variants(name: str, username: str = Depends(get_current_admin)) -> List[str]:
     """Вариации указанной модели с параметрами."""
     try:
         return list_model_variants(name)
@@ -69,7 +70,7 @@ async def model_variants(name: str, username: str = Depends(get_current_username
         )
 
 @router.post("/{name}/install")
-async def install(name: str, username: str = Depends(get_current_username)) -> Dict[str, str]:
+async def install(name: str, username: str = Depends(get_current_admin)) -> Dict[str, str]:
     """Устанавливает модель по её имени из публичного реестра"""
     try:
         install_model(name)
@@ -81,7 +82,7 @@ async def install(name: str, username: str = Depends(get_current_username)) -> D
         )
 
 @router.delete("/{name}")
-async def uninstall(name: str, username: str = Depends(get_current_username)) -> Dict[str, str]:
+async def uninstall(name: str, username: str = Depends(get_current_admin)) -> Dict[str, str]:
     """Удаляет локально установленную модель"""
     try:
         remove_model(name)

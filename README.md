@@ -13,6 +13,10 @@
 - `GET /admin/api/config` – текущий порт и дневной лимит
 - `POST /admin/api/config` – обновить порт и лимит
 - `GET /admin/api/models` – список установленных моделей
+- `GET /admin/api/models/available` – доступные для установки модели
+- `GET /admin/api/models/{name}/variants` – варианты конкретной модели
+- `POST /admin/api/models/{name}/install` – установить модель
+- `DELETE /admin/api/models/{name}` – удалить модель
 - `GET /admin/api/sessions` – список сессий чата с количеством сообщений
 - `POST /admin/api/restart` – перезапуск сервера API
 - `GET /admin/api/status` – текущий порт API, состояние процесса и число сессий
@@ -20,6 +24,7 @@
 - `GET /admin/api/usage` – суммарное количество запросов по пользователям
 
 Лог-файл задаётся переменной окружения `LOG_PATH` (по умолчанию `app.log`).
+Файл создаётся автоматически при старте сервера и удаляется при его завершении.
 
 ## WebSocket Metrics
 
