@@ -61,23 +61,19 @@ def list_remote_models() -> List[str]:
                 text = detail.text
                 # Search for occurrences like "gemma3:1b" within the page
 
-                # Variant names usually consist of alphanumerics, dashes or dots
-                # like ``1b`` or ``12b-it-qat``. To avoid capturing surrounding
-                # markup or whitespace we restrict the allowed characters.
-                pattern = rf"{re.escape(name)}:([A-Za-z0-9_.-]+)"
-
+                pattern = rf"{re.escape(name)}:[A-Za-z0-9_.-]+"
                 matches = set(re.findall(pattern, text, flags=re.IGNORECASE))
-                variants.extend(sorted(f"{name}:{m}" for m in matches))
-                if f"{name}:latest" not in variants:
-                    variants.insert(0, f"{name}:latest")
+                variants.extend(sorted(m.strip() for m in matches))
         except Exception:
             pass
 
 
         if variants:
+            if f"{name}:latest" not in variants:
+                variants.insert(0, f"{name}:latest")
             models.extend(variants)
         else:
-            models.append(name)
+            models.append(f"{name}:latest")
 
     return models
 
@@ -122,13 +118,13 @@ def list_model_variants(name: str) -> List[str]:
 
     text = resp.text
 
-    pattern = rf"{re.escape(name)}:([A-Za-z0-9_.-]+)"
-
+    pattern = rf"{re.escape(name)}:[A-Za-z0-9_.-]+"
     matches = set(re.findall(pattern, text, flags=re.IGNORECASE))
-    variants = sorted(f"{name}:{m}" for m in matches)
+    variants = sorted(m.strip() for m in matches)
     if f"{name}:latest" not in variants:
         variants.insert(0, f"{name}:latest")
-    return variants if variants else [name]
+    return variants if variants else [f"{name}:latest"]
+
 
 
 def list_installed_models() -> List[str]:
