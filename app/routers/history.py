@@ -15,9 +15,11 @@ from pydantic import BaseModel
 
 router = APIRouter()
 
+
 class SessionInfo(BaseModel):
     session_id: str
     created_at: str  # ISO datetime as string
+
 
 class MessageInfo(BaseModel):
     role: str
@@ -25,11 +27,23 @@ class MessageInfo(BaseModel):
     content: str
     timestamp: str  # ISO datetime as string
 
+
 @router.get("/sessions", response_model=List[SessionInfo])
-def list_sessions(username: str = Depends(get_current_username), db: Session = Depends(get_db)):
+def list_sessions(
+    username: str = Depends(get_current_username), db: Session = Depends(get_db)
+):
     """Возвращает список всех сессий чатов"""
-    sessions = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
-    return [SessionInfo(session_id=s.session_id, created_at=s.created_at.isoformat()) for s in sessions]
+    sessions = (
+        db.query(SessionModel)
+        .filter(SessionModel.username == username)
+        .order_by(SessionModel.created_at.desc())
+        .all()
+    )
+    return [
+        SessionInfo(session_id=s.session_id, created_at=s.created_at.isoformat())
+        for s in sessions
+    ]
+
 
 @router.get("/{session_id}", response_model=List[MessageInfo])
 def get_session_messages(
@@ -38,21 +52,33 @@ def get_session_messages(
     db: Session = Depends(get_db),
 ) -> List[MessageInfo]:
     """Возвращает список сообщений для указанной сессии"""
-    session = db.query(SessionModel).filter(SessionModel.session_id == session_id).first()
+    session = (
+        db.query(SessionModel)
+        .filter(
+            SessionModel.session_id == session_id, SessionModel.username == username
+        )
+        .first()
+    )
     if not session:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
-    messages = db.query(Message).filter(Message.session_id == session_id).order_by(Message.timestamp.asc()).all()
+    messages = (
+        db.query(Message)
+        .filter(Message.session_id == session_id, Message.username == username)
+        .order_by(Message.timestamp.asc())
+        .all()
+    )
     return [
         MessageInfo(
             role=m.role,
             model=m.model,
             content=m.content,
-            timestamp=m.timestamp.isoformat()
-        ) for m in messages
+            timestamp=m.timestamp.isoformat(),
+        )
+        for m in messages
     ]
+
 
 @router.delete("/{session_id}")
 def delete_session(
@@ -61,14 +87,21 @@ def delete_session(
     db: Session = Depends(get_db),
 ):
     """Удаляет сессию и все её сообщения"""
-    session = db.query(SessionModel).filter(SessionModel.session_id == session_id).first()
+    session = (
+        db.query(SessionModel)
+        .filter(
+            SessionModel.session_id == session_id, SessionModel.username == username
+        )
+        .first()
+    )
     if not session:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Session not found"
+            status_code=status.HTTP_404_NOT_FOUND, detail="Session not found"
         )
     # Удалить сообщения
-    db.query(Message).filter(Message.session_id == session_id).delete()
+    db.query(Message).filter(
+        Message.session_id == session_id, Message.username == username
+    ).delete()
     # Удалить саму сессию
     db.delete(session)
     db.commit()
