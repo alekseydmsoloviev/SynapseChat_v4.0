@@ -16,7 +16,6 @@
 - `GET /admin/api/models/available` – доступные для установки модели
 - `GET /admin/api/models/{name}/variants` – варианты конкретной модели
 - `POST /admin/api/models/{name}/install` – установить модель
-- во время загрузки прогресс скачивания выводится в лог сервера и доступен через `/admin/api/logs`
 - `DELETE /admin/api/models/{name}` – удалить модель
 - `GET /admin/api/sessions` – список сессий чата с количеством сообщений
 - `POST /admin/api/restart` – перезапуск сервера API
@@ -25,6 +24,7 @@
 - `GET /admin/api/usage` – суммарное количество запросов по пользователям
 
 Лог-файл задаётся переменной окружения `LOG_PATH` (по умолчанию `app.log`).
+Файл создаётся автоматически при старте сервера и удаляется при его завершении.
 
 ## WebSocket Metrics
 
