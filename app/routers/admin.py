@@ -4,10 +4,16 @@ import subprocess
 import secrets
 
 from fastapi import APIRouter, Request, Depends, Form, status, HTTPException
-from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
+from fastapi.responses import (
+    RedirectResponse,
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+)
 from fastapi.templating import Jinja2Templates
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from dotenv import load_dotenv, dotenv_values, set_key
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -17,6 +23,8 @@ from app.utils.ollama import list_installed_models, remove_model
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 ENV_PATH = os.path.join(os.getcwd(), ".env")
+load_dotenv(ENV_PATH)
+LOG_PATH = os.getenv("LOG_PATH", os.path.join(os.getcwd(), "app.log"))
 security = HTTPBasic()
 
 # Глобальный процесс API
@@ -348,4 +356,62 @@ def api_restart_server(admin: str = Depends(get_current_admin)):
     # Reuse the logic from the HTML version but return JSON
     restart_api_server(admin)
     return JSONResponse({"message": "API server restarted."})
+
+
+@router.get("/admin/api/status")
+def api_status(admin: str = Depends(get_current_admin)):
+    """Return API port, running state and session count."""
+    load_dotenv(ENV_PATH)
+    port = os.getenv("PORT", "8000")
+    process_state = (
+        "running" if api_process and api_process.poll() is None else "stopped"
+    )
+    db: Session = SessionLocal()
+    try:
+        session_count = db.query(SessionModel).count()
+    finally:
+        db.close()
+    return JSONResponse(
+        {
+            "port": port,
+            "process": process_state,
+            "sessions": session_count,
+        }
+    )
+
+
+def _tail_log(path: str, lines: int) -> str:
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            data = f.readlines()
+        return "".join(data[-lines:])
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Log file not found")
+
+
+@router.get("/admin/api/logs")
+def api_logs(
+    lines: int = 100, admin: str = Depends(get_current_admin)
+):
+    """Return last N lines from the log file."""
+    load_dotenv(ENV_PATH)
+    log_path = os.getenv("LOG_PATH", LOG_PATH)
+    content = _tail_log(log_path, lines)
+    return PlainTextResponse(content)
+
+
+@router.get("/admin/api/usage")
+def api_usage(admin: str = Depends(get_current_admin)):
+    """Return aggregated usage counts from RateLimit."""
+    db: Session = SessionLocal()
+    try:
+        rows = (
+            db.query(RateLimit.username, func.sum(RateLimit.count).label("count"))
+            .group_by(RateLimit.username)
+            .all()
+        )
+        payload = [{"username": r.username, "count": r.count} for r in rows]
+        return JSONResponse(payload)
+    finally:
+        db.close()
 
