@@ -11,6 +11,7 @@ from app.models import User
 
 app = typer.Typer(invoke_without_command=True)
 
+
 @app.callback(invoke_without_command=True)
 def main():
     """
@@ -20,15 +21,51 @@ def main():
     """
     load_dotenv()
 
-    # 1) Миграция схемы: users → is_admin, daily_limit
+    # 1) Миграция схемы: users → is_admin, daily_limit и новые связи
     insp = inspect(engine)
     if "users" in insp.get_table_names():
         cols = [c["name"] for c in insp.get_columns("users")]
         with engine.connect() as conn:
             if "is_admin" not in cols:
-                conn.execute(text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0"))
+                conn.execute(
+                    text("ALTER TABLE users ADD COLUMN is_admin BOOLEAN DEFAULT 0")
+                )
             if "daily_limit" not in cols:
-                conn.execute(text("ALTER TABLE users ADD COLUMN daily_limit INTEGER DEFAULT 1000"))
+                conn.execute(
+                    text(
+                        "ALTER TABLE users ADD COLUMN daily_limit INTEGER DEFAULT 1000"
+                    )
+                )
+
+    if "sessions" in insp.get_table_names():
+        cols = [c["name"] for c in insp.get_columns("sessions")]
+        if "username" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE sessions ADD COLUMN username VARCHAR"))
+                conn.execute(text("UPDATE sessions SET username = 'unknown'"))
+
+    if "messages" in insp.get_table_names():
+        cols = [c["name"] for c in insp.get_columns("messages")]
+        if "username" not in cols:
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE messages ADD COLUMN username VARCHAR"))
+                conn.execute(text("UPDATE messages SET username = 'unknown'"))
+
+    if "rate_limits" in insp.get_table_names():
+        cols = {c["name"]: c["type"] for c in insp.get_columns("rate_limits")}
+        if str(cols.get("date")) == "VARCHAR" or str(cols.get("date")).startswith(
+            "VARCHAR"
+        ):
+            with engine.connect() as conn:
+                conn.execute(text("ALTER TABLE rate_limits RENAME TO rate_limits_old"))
+            Base.metadata.tables["rate_limits"].create(bind=engine)
+            with engine.connect() as conn:
+                conn.execute(
+                    text(
+                        "INSERT INTO rate_limits (username, date, count) SELECT username, date, count FROM rate_limits_old"
+                    )
+                )
+                conn.execute(text("DROP TABLE rate_limits_old"))
 
     # 2) Создание таблиц rate_limits, sessions, messages, если не созданы
     Base.metadata.create_all(bind=engine)
@@ -40,14 +77,14 @@ def main():
         if not admin:
             typer.secho("Создание администратора:", fg=typer.colors.YELLOW)
             name = typer.prompt("Admin username")
-            pwd  = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
+            pwd = typer.prompt("Password", hide_input=True, confirmation_prompt=True)
             admin_port = typer.prompt("Admin panel port", default="8080")
-            api_port   = typer.prompt("API server port", default="9000")
+            api_port = typer.prompt("API server port", default="9000")
             admin = User(
                 username=name,
                 password_hash=pwd,
                 is_admin=True,
-                daily_limit=0  # администратор без ограничений
+                daily_limit=0,  # администратор без ограничений
             )
             db.add(admin)
             db.commit()
@@ -59,7 +96,7 @@ def main():
             typer.secho(
                 f"Администратор '{name}' создан. "
                 f"Admin panel: {admin_port}, API: {api_port}",
-                fg=typer.colors.GREEN
+                fg=typer.colors.GREEN,
             )
     finally:
         db.close()
@@ -67,12 +104,16 @@ def main():
     # 4) Читаем порты из .env
     load_dotenv()  # чтобы подхватить возможно обновлённые значения
     admin_port = os.getenv("ADMIN_PORT", "8080")
-    api_port   = os.getenv("PORT",        "9000")
+    api_port = os.getenv("PORT", "9000")
 
     # 5) Запуск админ-панели (она сама подхватит и запустит API на нужном порту)
     admin_cmd = [
-        "uvicorn", "app.admin_app:app",
-        "--host", "0.0.0.0", "--port", admin_port
+        "uvicorn",
+        "app.admin_app:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        admin_port,
     ]
     proc = subprocess.Popen(admin_cmd)
 
@@ -86,6 +127,7 @@ def main():
     finally:
         if proc.poll() is None:
             proc.terminate()
+
 
 if __name__ == "__main__":
     app()

@@ -74,6 +74,50 @@ def list_remote_models() -> List[str]:
     return models
 
 
+def list_remote_base_models() -> List[str]:
+    """Return list of base model names available in the Ollama registry."""
+    if not requests or not BeautifulSoup:
+        raise RuntimeError(
+            "Missing dependencies for remote model listing: requests, beautifulsoup4"
+        )
+
+    url = "https://ollama.com/library"
+    resp = requests.get(url)
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"Error fetching remote models page: status {resp.status_code}"
+        )
+
+    soup = BeautifulSoup(resp.text, "html.parser")
+    models: List[str] = []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if href.startswith("/library/"):
+            name = href.split("/")[-1]
+            if name and name not in models:
+                models.append(name)
+    return models
+
+
+def list_model_variants(name: str) -> List[str]:
+    """Return available variants for a given base model."""
+    if not requests or not BeautifulSoup:
+        raise RuntimeError(
+            "Missing dependencies for remote model listing: requests, beautifulsoup4"
+        )
+
+    resp = requests.get(f"https://ollama.com/library/{name}")
+    if resp.status_code != 200:
+        raise RuntimeError(
+            f"Error fetching model page for '{name}': status {resp.status_code}"
+        )
+
+    text = resp.text
+    pattern = rf"{re.escape(name)}:[^\"'\\s<]+"
+    matches = set(re.findall(pattern, text, flags=re.IGNORECASE))
+    return sorted(matches) if matches else [name]
+
+
 def list_installed_models() -> List[str]:
     """
     List models currently installed locally via Ollama CLI.

@@ -81,11 +81,12 @@
         <h2>Chat Sessions</h2>
         <table>
             <thead>
-                <tr><th>Session ID</th><th>Created At</th><th>Message Count</th></tr>
+                <tr><th>User</th><th>Session ID</th><th>Created At</th><th>Message Count</th></tr>
             </thead>
             <tbody>
                 {% for s in sessions %}
                 <tr>
+                    <td>{{ s.username }}</td>
                     <td>{{ s.session_id }}</td>
                     <td>{{ s.created_at }}</td>
                     <td>{{ msg_counts[s.session_id] }}</td>

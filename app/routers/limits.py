@@ -1,7 +1,7 @@
 # app/routers/limits.py
 """Endpoints for viewing the current user's rate limits."""
 
-from datetime import datetime
+from datetime import date
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -31,12 +31,15 @@ def get_limits(
     if user.is_admin:
         return LimitInfo(daily_limit=0, used=0, remaining=0)
 
-    today = datetime.now().strftime("%Y-%m-%d")
-    rl = db.query(RateLimit).filter(
-        RateLimit.username == username,
-        RateLimit.date == today,
-    ).first()
+    today = date.today()
+    rl = (
+        db.query(RateLimit)
+        .filter(
+            RateLimit.username == username,
+            RateLimit.date == today,
+        )
+        .first()
+    )
     used = rl.count if rl else 0
     remaining = max(0, user.daily_limit - used)
     return LimitInfo(daily_limit=user.daily_limit, used=used, remaining=remaining)
-
