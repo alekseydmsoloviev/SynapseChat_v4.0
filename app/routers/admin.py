@@ -2,8 +2,11 @@ import os
 import sys
 import subprocess
 import secrets
+import base64
+import asyncio
+import psutil
 
-from fastapi import APIRouter, Request, Depends, Form, status, HTTPException
+from fastapi import APIRouter, Request, Depends, Form, status, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import (
     RedirectResponse,
     HTMLResponse,
@@ -414,4 +417,66 @@ def api_usage(admin: str = Depends(get_current_admin)):
         return JSONResponse(payload)
     finally:
         db.close()
+
+
+@router.websocket("/admin/ws")
+async def admin_ws(websocket: WebSocket):
+    """WebSocket connection providing live server metrics."""
+    auth = websocket.headers.get("authorization")
+    username = password = None
+    if auth and auth.lower().startswith("basic "):
+        try:
+            decoded = base64.b64decode(auth.split()[1]).decode("utf-8")
+            username, password = decoded.split(":", 1)
+        except Exception:
+            pass
+    if not username:
+        username = websocket.query_params.get("username")
+        password = websocket.query_params.get("password")
+
+    if not username or not password:
+        await websocket.close(code=1008)
+        return
+
+    db: Session = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+    finally:
+        db.close()
+
+    if (
+        not user
+        or not secrets.compare_digest(password, user.password_hash)
+        or not user.is_admin
+    ):
+        await websocket.close(code=1008)
+        return
+
+    await websocket.accept()
+    try:
+        while True:
+            cpu = psutil.cpu_percent()
+            memory = psutil.virtual_memory().percent
+            db: Session = SessionLocal()
+            try:
+                users = [u.username for u in db.query(User).all()]
+                sessions = [s.session_id for s in db.query(SessionModel).all()]
+            finally:
+                db.close()
+            try:
+                models = list_installed_models()
+            except Exception:
+                models = []
+            await websocket.send_json(
+                {
+                    "cpu": cpu,
+                    "memory": memory,
+                    "users": users,
+                    "sessions": sessions,
+                    "models": models,
+                }
+            )
+            await asyncio.sleep(5)
+    except WebSocketDisconnect:
+        pass
 
