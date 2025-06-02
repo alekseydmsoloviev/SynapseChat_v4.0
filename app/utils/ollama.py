@@ -3,6 +3,7 @@
 Wrapper for invoking Ollama CLI commands and scraping to manage and chat with models.
 """
 import subprocess
+import sys
 import re
 from typing import List, Optional, Callable
 
@@ -59,17 +60,20 @@ def list_remote_models() -> List[str]:
             if detail.status_code == 200:
                 text = detail.text
                 # Search for occurrences like "gemma3:1b" within the page
-                pattern = rf"{name}:[^\"'\\s<]+"
+
+                pattern = rf"{re.escape(name)}:[A-Za-z0-9_.-]+"
                 matches = set(re.findall(pattern, text, flags=re.IGNORECASE))
-                variants.extend(sorted(matches))
+                variants.extend(sorted(m.strip() for m in matches))
         except Exception:
             pass
 
 
         if variants:
+            if f"{name}:latest" not in variants:
+                variants.insert(0, f"{name}:latest")
             models.extend(variants)
         else:
-            models.append(name)
+            models.append(f"{name}:latest")
 
     return models
 
@@ -113,9 +117,14 @@ def list_model_variants(name: str) -> List[str]:
         )
 
     text = resp.text
-    pattern = rf"{re.escape(name)}:[^\"'\\s<]+"
+
+    pattern = rf"{re.escape(name)}:[A-Za-z0-9_.-]+"
     matches = set(re.findall(pattern, text, flags=re.IGNORECASE))
-    return sorted(matches) if matches else [name]
+    variants = sorted(m.strip() for m in matches)
+    if f"{name}:latest" not in variants:
+        variants.insert(0, f"{name}:latest")
+    return variants if variants else [f"{name}:latest"]
+
 
 
 def list_installed_models() -> List[str]:
@@ -140,6 +149,7 @@ def list_installed_models() -> List[str]:
     return models
 
 
+
 def install_model(name: str, progress_callback: Optional[Callable[[str], None]] = None) -> None:
     """Install a model from the public registry and stream progress.
 
@@ -147,6 +157,7 @@ def install_model(name: str, progress_callback: Optional[Callable[[str], None]] 
     is passed to it. Otherwise the lines are printed to stdout.
     Raises ``RuntimeError`` on failure.
     """
+
     proc = subprocess.Popen(
         [OLLAMA_CMD, "pull", name],
         stdout=subprocess.PIPE,
@@ -158,12 +169,14 @@ def install_model(name: str, progress_callback: Optional[Callable[[str], None]] 
     assert proc.stdout is not None
     for line in proc.stdout:
         line = line.rstrip()
+
         output_lines.append(line)
         if progress_callback:
             progress_callback(line)
         else:
             print(line)
             sys.stdout.flush()
+
     proc.wait()
     if proc.returncode != 0:
         raise RuntimeError(

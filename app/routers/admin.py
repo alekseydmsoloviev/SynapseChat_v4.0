@@ -73,8 +73,10 @@ def get_current_admin(creds: HTTPBasicCredentials = Depends(security)):
 @router.on_event("startup")
 def start_api_server():
     """Запуск API-процесса при старте админ-приложения."""
+
     global api_process, event_loop
     event_loop = asyncio.get_event_loop()
+
     # Создаём файл логов, если его ещё нет
     try:
         open(LOG_PATH, "a").close()
@@ -377,6 +379,7 @@ def api_model_variants(name: str, admin: str = Depends(get_current_admin)):
 @router.post("/admin/api/models/{name}/install")
 def api_install_model(name: str, admin: str = Depends(get_current_admin)):
     """Install a model from the registry."""
+
     def _progress(line: str) -> None:
         try:
             with open(LOG_PATH, "a", encoding="utf-8") as f:
@@ -388,6 +391,7 @@ def api_install_model(name: str, admin: str = Depends(get_current_admin)):
 
     try:
         install_model(name, progress_callback=_progress)
+
         return JSONResponse({"message": f"Model '{name}' installed."})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -559,6 +563,24 @@ async def admin_ws(websocket: WebSocket):
         pass
     finally:
         ws_clients.discard(websocket)
+
+
+@router.on_event("shutdown")
+def cleanup_on_shutdown():
+    """Terminate API process and remove log file."""
+    global api_process
+    if api_process and api_process.poll() is None:
+        try:
+            api_process.terminate()
+            api_process.wait(timeout=5)
+        except Exception:
+            pass
+        api_process = None
+    if os.path.exists(LOG_PATH):
+        try:
+            os.remove(LOG_PATH)
+        except Exception:
+            pass
 
 
 @router.on_event("shutdown")
