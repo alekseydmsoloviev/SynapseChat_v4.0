@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.database import engine, Base
-from app.routers import auth, models, chat, history, admin
+from app.routers import auth, chat, history, admin
 
 app = FastAPI(
     title="Ollama Proxy API",
@@ -29,7 +29,6 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.include_router(auth.router)
-app.include_router(models.router, prefix="/models", tags=["Models"])
 app.include_router(chat.router, prefix="/chat", tags=["Chat"])
 app.include_router(history.router, prefix="/history", tags=["History"])
 app.include_router(admin.router)

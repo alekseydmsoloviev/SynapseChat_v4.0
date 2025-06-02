@@ -21,7 +21,13 @@ from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import User, RateLimit, Session as SessionModel, Message
-from app.utils.ollama import list_installed_models, remove_model
+from app.utils.ollama import (
+    list_installed_models,
+    remove_model,
+    list_remote_base_models,
+    list_model_variants,
+    install_model,
+)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -323,6 +329,46 @@ def api_installed_models(admin: str = Depends(get_current_admin)):
     try:
         models = list_installed_models()
         return JSONResponse(models)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/admin/api/models/available")
+def api_available_models(admin: str = Depends(get_current_admin)):
+    """List base models available for installation."""
+    try:
+        models = list_remote_base_models()
+        return JSONResponse(models)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/admin/api/models/{name}/variants")
+def api_model_variants(name: str, admin: str = Depends(get_current_admin)):
+    """List variants for a specific model."""
+    try:
+        variants = list_model_variants(name)
+        return JSONResponse(variants)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/admin/api/models/{name}/install")
+def api_install_model(name: str, admin: str = Depends(get_current_admin)):
+    """Install a model from the registry."""
+    try:
+        install_model(name)
+        return JSONResponse({"message": f"Model '{name}' installed."})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/admin/api/models/{name}")
+def api_remove_model(name: str, admin: str = Depends(get_current_admin)):
+    """Remove an installed model."""
+    try:
+        remove_model(name)
+        return JSONResponse({"message": f"Model '{name}' removed."})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
