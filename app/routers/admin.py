@@ -29,6 +29,7 @@ from app.utils.ollama import (
     list_model_variants,
     install_model,
 )
+from app.utils.db_snapshot import collect_snapshot
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -558,6 +559,8 @@ async def admin_ws(websocket: WebSocket):
                     "models": models,
                 }
             )
+            snapshot = collect_snapshot()
+            await websocket.send_json({"type": "db_snapshot", "snapshot": snapshot})
             await asyncio.sleep(5)
     except WebSocketDisconnect:
         pass
