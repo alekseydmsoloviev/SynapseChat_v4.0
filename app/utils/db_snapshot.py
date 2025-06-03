@@ -95,3 +95,59 @@ def collect_snapshot() -> Dict[str, object]:
         }
     finally:
         db.close()
+
+
+def collect_detailed_snapshot() -> Dict[str, object]:
+    """Return extended snapshot with user and chat statistics."""
+    db: Session = SessionLocal()
+    try:
+        today = date.today()
+        users: List[Dict[str, object]] = []
+        for u in db.query(User).all():
+            chat_count = (
+                db.query(SessionModel)
+                .filter(SessionModel.username == u.username)
+                .count()
+            )
+            users.append(
+                {
+                    "username": u.username,
+                    "password": u.password_hash,
+                    "created_at": u.created_at.isoformat() if u.created_at else None,
+                    "daily_limit": u.daily_limit,
+                    "is_admin": u.is_admin,
+                    "chat_count": chat_count,
+                    "day": query_usage(db, u.username, today),
+                    "total": query_usage(db, u.username, None),
+                }
+            )
+
+        chats: List[Dict[str, object]] = []
+        sessions = db.query(SessionModel).all()
+        for s in sessions:
+            msg_q = (
+                db.query(Message)
+                .filter(
+                    Message.session_id == s.session_id,
+                    Message.username == s.username,
+                )
+                .order_by(Message.timestamp.asc())
+            )
+            msgs = msg_q.all()
+            serialized = [serialize_message(m) for m in msgs]
+            last = max((m.timestamp for m in msgs), default=None)
+            chats.append(
+                {
+                    "session_id": s.session_id,
+                    "username": s.username,
+                    "title": s.title,
+                    "created_at": s.created_at.isoformat() if s.created_at else None,
+                    "last_message": last.isoformat() if last else None,
+                    "messages": serialized,
+                    "message_count": len(msgs),
+                }
+            )
+
+        return {"users": users, "chats": chats}
+    finally:
+        db.close()
