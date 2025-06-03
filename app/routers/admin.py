@@ -21,6 +21,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import date
 
+from app.utils.db_snapshot import collect_snapshot
+from app.utils.usage import query_usage
+
 from app.database import SessionLocal
 from app.models import User, RateLimit, Session as SessionModel, Message
 from app.utils.ollama import (
