@@ -149,7 +149,6 @@ def list_installed_models() -> List[str]:
     return models
 
 
-
 def install_model(name: str, progress_callback: Optional[Callable[[str], None]] = None) -> None:
     """Install a model from the public registry and stream progress.
 
@@ -157,7 +156,6 @@ def install_model(name: str, progress_callback: Optional[Callable[[str], None]] 
     is passed to it. Otherwise the lines are printed to stdout.
     Raises ``RuntimeError`` on failure.
     """
-
     proc = subprocess.Popen(
         [OLLAMA_CMD, "pull", name],
         stdout=subprocess.PIPE,
@@ -169,14 +167,12 @@ def install_model(name: str, progress_callback: Optional[Callable[[str], None]] 
     assert proc.stdout is not None
     for line in proc.stdout:
         line = line.rstrip()
-
         output_lines.append(line)
         if progress_callback:
             progress_callback(line)
         else:
             print(line)
             sys.stdout.flush()
-
     proc.wait()
     if proc.returncode != 0:
         raise RuntimeError(
