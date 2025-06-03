@@ -20,6 +20,7 @@ def serialize_user(user: User) -> Dict[str, object]:
         "username": user.username,
         "is_admin": user.is_admin,
         "daily_limit": user.daily_limit,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
     }
 
 
