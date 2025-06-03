@@ -19,6 +19,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from dotenv import load_dotenv, dotenv_values, set_key
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from datetime import date
 
 from app.database import SessionLocal
 from app.models import User, RateLimit, Session as SessionModel, Message
@@ -29,6 +30,7 @@ from app.utils.ollama import (
     list_model_variants,
     install_model,
 )
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -405,25 +407,11 @@ def api_remove_model(name: str, admin: str = Depends(get_current_admin)):
 
 @router.get("/admin/api/sessions")
 def api_list_sessions(admin: str = Depends(get_current_admin)):
-    """Return list of chat sessions with message counts."""
+    """Return list of chat sessions with messages and last timestamp."""
     db: Session = SessionLocal()
     try:
         sessions = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
-        msg_counts = {
-            s.session_id: db.query(Message)
-            .filter(Message.session_id == s.session_id, Message.username == s.username)
-            .count()
-            for s in sessions
-        }
-        payload = [
-            {
-                "username": s.username,
-                "session_id": s.session_id,
-                "created_at": s.created_at.isoformat() if s.created_at else None,
-                "message_count": msg_counts[s.session_id],
-            }
-            for s in sessions
-        ]
+        payload = [collect_chat_messages(db, s) for s in sessions]
         return JSONResponse(payload)
     finally:
         db.close()
@@ -481,15 +469,19 @@ def api_logs(
 
 @router.get("/admin/api/usage")
 def api_usage(admin: str = Depends(get_current_admin)):
-    """Return aggregated usage counts from RateLimit."""
+    """Return usage counts for each user for today and total."""
     db: Session = SessionLocal()
     try:
-        rows = (
-            db.query(RateLimit.username, func.sum(RateLimit.count).label("count"))
-            .group_by(RateLimit.username)
-            .all()
-        )
-        payload = [{"username": r.username, "count": r.count} for r in rows]
+        today = date.today()
+        users = db.query(User).all()
+        payload = [
+            {
+                "username": u.username,
+                "day": query_usage(db, u.username, today),
+                "total": query_usage(db, u.username, None),
+            }
+            for u in users
+        ]
         return JSONResponse(payload)
     finally:
         db.close()
@@ -554,6 +546,8 @@ async def admin_ws(websocket: WebSocket):
                     "models": models,
                 }
             )
+            snapshot = collect_snapshot()
+            await websocket.send_json({"type": "db_snapshot", "snapshot": snapshot})
             await asyncio.sleep(5)
     except WebSocketDisconnect:
         pass
@@ -577,4 +571,6 @@ def cleanup_on_shutdown():
             os.remove(LOG_PATH)
         except Exception:
             pass
+
+
 
