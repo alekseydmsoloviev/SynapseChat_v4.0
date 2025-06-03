@@ -21,7 +21,7 @@ def main():
     """
     load_dotenv()
 
-    # 1) Миграция схемы: users → is_admin, daily_limit и новые связи
+    # 1) Миграция схемы: users → is_admin, daily_limit, created_at и новые связи
     insp = inspect(engine)
     if "users" in insp.get_table_names():
         cols = [c["name"] for c in insp.get_columns("users")]
@@ -34,6 +34,12 @@ def main():
                 conn.execute(
                     text(
                         "ALTER TABLE users ADD COLUMN daily_limit INTEGER DEFAULT 1000"
+                    )
+                )
+            if "created_at" not in cols:
+                conn.execute(
+                    text(
+                        "ALTER TABLE users ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
                     )
                 )
 
