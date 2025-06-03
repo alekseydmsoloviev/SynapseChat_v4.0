@@ -34,6 +34,7 @@ class Session(Base):
     __tablename__ = "sessions"
     session_id = Column(String, server_default=func.random(), primary_key=True)
     username = Column(String, ForeignKey("users.username"), primary_key=True)
+    title = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
 
 

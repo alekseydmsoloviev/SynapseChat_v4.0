@@ -17,7 +17,7 @@
 - `GET /admin/api/models/{name}/variants` – варианты конкретной модели
 - `POST /admin/api/models/{name}/install` – установить модель
 - `DELETE /admin/api/models/{name}` – удалить модель
-- `GET /admin/api/sessions` – список сессий чата с количеством сообщений
+- `GET /admin/api/sessions` – список сессий чата с сообщениями и датой последнего сообщения
 - `POST /admin/api/restart` – перезапуск сервера API
 - `GET /admin/api/status` – текущий порт API, состояние процесса и число сессий
 - `GET /admin/api/logs` – последние строки из файла логов (`LOG_PATH`)

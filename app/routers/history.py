@@ -18,6 +18,7 @@ router = APIRouter()
 
 class SessionInfo(BaseModel):
     session_id: str
+    title: str | None = None
     created_at: str  # ISO datetime as string
 
 
@@ -40,7 +41,11 @@ def list_sessions(
         .all()
     )
     return [
-        SessionInfo(session_id=s.session_id, created_at=s.created_at.isoformat())
+        SessionInfo(
+            session_id=s.session_id,
+            title=s.title,
+            created_at=s.created_at.isoformat(),
+        )
         for s in sessions
     ]
 
