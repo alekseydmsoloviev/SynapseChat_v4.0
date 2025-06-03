@@ -8,10 +8,11 @@ statistics.
 
 from typing import Dict
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from datetime import date
 
 from app.database import SessionLocal
-from app.models import User, Session as SessionModel, Message, RateLimit
+from app.models import User, Session as SessionModel, Message
+from .usage import query_usage
 
 
 def serialize_user(user: User) -> Dict[str, object]:
@@ -53,12 +54,16 @@ def collect_snapshot() -> Dict[str, object]:
         users = [serialize_user(u) for u in db.query(User).all()]
         sessions = [serialize_session(s) for s in db.query(SessionModel).all()]
         messages = [serialize_message(m) for m in db.query(Message).all()]
-        usage_rows = (
-            db.query(RateLimit.username, func.sum(RateLimit.count).label("count"))
-            .group_by(RateLimit.username)
-            .all()
-        )
-        usage = [{"username": r.username, "count": r.count} for r in usage_rows]
+        usage = []
+        today = date.today()
+        for u in db.query(User).all():
+            usage.append(
+                {
+                    "username": u.username,
+                    "day": query_usage(db, u.username, today),
+                    "total": query_usage(db, u.username, None),
+                }
+            )
         return {
             "users": users,
             "sessions": sessions,
