@@ -19,6 +19,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from dotenv import load_dotenv, dotenv_values, set_key
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from datetime import date
 
 from app.database import SessionLocal
 from app.models import User, RateLimit, Session as SessionModel, Message
@@ -30,6 +31,7 @@ from app.utils.ollama import (
     install_model,
 )
 from app.utils.db_snapshot import collect_snapshot
+from app.utils.usage import query_usage
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -486,15 +488,19 @@ def api_logs(
 
 @router.get("/admin/api/usage")
 def api_usage(admin: str = Depends(get_current_admin)):
-    """Return aggregated usage counts from RateLimit."""
+    """Return usage counts for each user for today and total."""
     db: Session = SessionLocal()
     try:
-        rows = (
-            db.query(RateLimit.username, func.sum(RateLimit.count).label("count"))
-            .group_by(RateLimit.username)
-            .all()
-        )
-        payload = [{"username": r.username, "count": r.count} for r in rows]
+        today = date.today()
+        users = db.query(User).all()
+        payload = [
+            {
+                "username": u.username,
+                "day": query_usage(db, u.username, today),
+                "total": query_usage(db, u.username, None),
+            }
+            for u in users
+        ]
         return JSONResponse(payload)
     finally:
         db.close()
