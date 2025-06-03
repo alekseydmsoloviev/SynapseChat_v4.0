@@ -6,7 +6,7 @@ collecting a full snapshot consisting of users, chat sessions and
 statistics.
 """
 
-from typing import Dict
+from typing import Dict, List
 from sqlalchemy.orm import Session
 from datetime import date
 
@@ -30,6 +30,7 @@ def serialize_session(session: SessionModel) -> Dict[str, object]:
     return {
         "session_id": session.session_id,
         "username": session.username,
+        "title": session.title,
         "created_at": session.created_at.isoformat() if session.created_at else None,
     }
 
@@ -47,12 +48,34 @@ def serialize_message(message: Message) -> Dict[str, object]:
     }
 
 
+def collect_chat_messages(db: Session, session: SessionModel) -> Dict[str, object]:
+    """Return session info with its messages and last message timestamp."""
+    msgs = (
+        db.query(Message)
+        .filter(
+            Message.session_id == session.session_id,
+            Message.username == session.username,
+        )
+        .order_by(Message.timestamp.asc())
+        .all()
+    )
+    serialized_msgs = [serialize_message(m) for m in msgs]
+    last = max((m.timestamp for m in msgs), default=None)
+    return {
+        **serialize_session(session),
+        "messages": serialized_msgs,
+        "last_message": last.isoformat() if last else None,
+    }
+
+
 def collect_snapshot() -> Dict[str, object]:
-    """Collect complete snapshot of users, sessions, messages and usage."""
+    """Collect snapshot of users, sessions with messages and usage."""
     db: Session = SessionLocal()
     try:
         users = [serialize_user(u) for u in db.query(User).all()]
-        sessions = [serialize_session(s) for s in db.query(SessionModel).all()]
+        sessions = [
+            collect_chat_messages(db, s) for s in db.query(SessionModel).all()
+        ]
         messages = [serialize_message(m) for m in db.query(Message).all()]
         usage = []
         today = date.today()

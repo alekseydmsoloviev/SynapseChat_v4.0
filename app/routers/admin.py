@@ -30,7 +30,7 @@ from app.utils.ollama import (
     list_model_variants,
     install_model,
 )
-from app.utils.db_snapshot import collect_snapshot
+from app.utils.db_snapshot import collect_snapshot, collect_chat_messages
 from app.utils.usage import query_usage
 
 router = APIRouter()
@@ -412,25 +412,11 @@ def api_remove_model(name: str, admin: str = Depends(get_current_admin)):
 
 @router.get("/admin/api/sessions")
 def api_list_sessions(admin: str = Depends(get_current_admin)):
-    """Return list of chat sessions with message counts."""
+    """Return list of chat sessions with messages and last timestamp."""
     db: Session = SessionLocal()
     try:
         sessions = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
-        msg_counts = {
-            s.session_id: db.query(Message)
-            .filter(Message.session_id == s.session_id, Message.username == s.username)
-            .count()
-            for s in sessions
-        }
-        payload = [
-            {
-                "username": s.username,
-                "session_id": s.session_id,
-                "created_at": s.created_at.isoformat() if s.created_at else None,
-                "message_count": msg_counts[s.session_id],
-            }
-            for s in sessions
-        ]
+        payload = [collect_chat_messages(db, s) for s in sessions]
         return JSONResponse(payload)
     finally:
         db.close()
