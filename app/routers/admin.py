@@ -315,9 +315,7 @@ def api_create_or_update_user(payload: dict, admin: str = Depends(get_current_ad
     username = payload.get("username")
     password = payload.get("password")
     limit_val = payload.get("daily_limit")
-    if limit_val is None:
-        limit_val = get_global_limit()
-    daily_limit = int(limit_val)
+    daily_limit = int(limit_val) if limit_val is not None else 1000
     if not username or not password:
         raise HTTPException(status_code=400, detail="username and password required")
     db: Session = SessionLocal()
@@ -599,7 +597,8 @@ async def admin_ws(websocket: WebSocket):
                 models = list_installed_models()
             except Exception:
                 models = []
-            load_dotenv(ENV_PATH)
+
+            load_dotenv(ENV_PATH, override=True)
             port = os.getenv("PORT", "8000")
             await websocket.send_json(
                 {

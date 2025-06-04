@@ -4,7 +4,8 @@ from datetime import datetime, date
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import RateLimit, User, Session as SessionModel, Message
-from app.utils.usage import get_global_limit
+from app.utils.usage import get_global_limit, query_usage_all
+
 from app.routers.auth import get_current_username
 from app.utils.ollama import chat
 
@@ -38,12 +39,21 @@ def check_and_increment_limit(db: Session, username: str):
         db.commit()
         db.refresh(rl)
 
-    limit = user.daily_limit or get_global_limit()
-    if rl.count >= limit:
+    user_limit = user.daily_limit if user.daily_limit is not None else 1000
+    if rl.count >= user_limit:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Daily request limit reached",
         )
+
+    global_limit = get_global_limit()
+    if global_limit:
+        day_total = query_usage_all(db, today)
+        if day_total >= global_limit:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Global daily request limit reached",
+            )
 
     rl.count += 1
     db.commit()
