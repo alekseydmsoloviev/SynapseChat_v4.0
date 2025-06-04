@@ -34,6 +34,7 @@ def query_usage_all(db: Session, since: date | None) -> int:
     return int(result or 0)
 
 
+
 def get_global_limit() -> int:
     """Return the daily request limit from configuration."""
     load_dotenv(ENV_PATH)
