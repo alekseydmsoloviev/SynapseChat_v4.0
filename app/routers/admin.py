@@ -566,11 +566,13 @@ async def admin_ws(websocket: WebSocket):
     try:
         prev_net = psutil.net_io_counters()
         interval = 5
+
         while True:
             cpu = psutil.cpu_percent()
             memory = psutil.virtual_memory().percent
             disk = psutil.disk_usage("/").percent
             net = psutil.net_io_counters()
+
             byte_diff = (net.bytes_sent - prev_net.bytes_sent) + (
                 net.bytes_recv - prev_net.bytes_recv
             )
