@@ -462,6 +462,26 @@ def api_get_session(session_id: str, admin: str = Depends(get_current_admin)):
         db.close()
 
 
+@router.delete("/admin/api/sessions/{session_id}")
+def api_delete_session(session_id: str, admin: str = Depends(get_current_admin)):
+    """Delete the specified chat session and all its messages."""
+    db: Session = SessionLocal()
+    try:
+        session = (
+            db.query(SessionModel)
+            .filter(SessionModel.session_id == session_id)
+            .first()
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        db.query(Message).filter(Message.session_id == session_id).delete()
+        db.delete(session)
+        db.commit()
+    finally:
+        db.close()
+    return JSONResponse({"message": f"Session '{session_id}' deleted."})
+
+
 @router.post("/admin/api/restart")
 def api_restart_server(admin: str = Depends(get_current_admin)):
     """Restart the API server and return JSON response."""
