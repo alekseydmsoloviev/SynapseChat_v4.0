@@ -21,7 +21,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import date
 
-from app.utils.db_snapshot import collect_chat_summary
+from app.utils.db_snapshot import collect_chat_summary, collect_chat_messages
 from app.utils.usage import query_usage, query_usage_all, get_global_limit
 
 from app.database import SessionLocal
@@ -372,13 +372,9 @@ def api_update_config(payload: dict, admin: str = Depends(get_current_admin)):
     open(ENV_PATH, "a").close()
     set_key(ENV_PATH, "PORT", port)
     set_key(ENV_PATH, "DAILY_LIMIT", limit)
-    # propagate new limit to all non-admin users
-    db: Session = SessionLocal()
-    try:
-        db.query(User).filter(User.is_admin == False).update({User.daily_limit: int(limit)})
-        db.commit()
-    finally:
-        db.close()
+    # Note: per-user limits are managed independently and should not be
+    # overwritten when the global limit changes.
+
     return JSONResponse({"message": "Configuration updated."})
 
 
