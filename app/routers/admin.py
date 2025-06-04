@@ -372,13 +372,9 @@ def api_update_config(payload: dict, admin: str = Depends(get_current_admin)):
     open(ENV_PATH, "a").close()
     set_key(ENV_PATH, "PORT", port)
     set_key(ENV_PATH, "DAILY_LIMIT", limit)
-    # propagate new limit to all non-admin users
-    db: Session = SessionLocal()
-    try:
-        db.query(User).filter(User.is_admin == False).update({User.daily_limit: int(limit)})
-        db.commit()
-    finally:
-        db.close()
+    # Note: per-user limits are managed independently and should not be
+    # overwritten when the global limit changes.
+
     return JSONResponse({"message": "Configuration updated."})
 
 
