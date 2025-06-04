@@ -21,7 +21,6 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import date
 
-
 from app.utils.db_snapshot import collect_overview, collect_chat_summary
 from app.utils.usage import query_usage
 

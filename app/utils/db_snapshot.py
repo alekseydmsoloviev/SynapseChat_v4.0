@@ -97,7 +97,6 @@ def collect_snapshot() -> Dict[str, object]:
         db.close()
 
 
-
 def collect_chat_summary(db: Session, session: SessionModel) -> Dict[str, object]:
     """Return session info with message count and last timestamp."""
     last_msg = (
@@ -157,3 +156,8 @@ def collect_overview() -> Dict[str, object]:
         return {"users": users, "chats": chats}
     finally:
         db.close()
+
+
+def collect_detailed_snapshot() -> Dict[str, object]:
+    """Backward-compatible alias for ``collect_overview``."""
+    return collect_overview()
