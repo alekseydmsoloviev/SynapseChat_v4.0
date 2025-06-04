@@ -573,14 +573,12 @@ async def admin_ws(websocket: WebSocket):
             disk = psutil.disk_usage("/").percent
             net = psutil.net_io_counters()
 
-
             byte_diff = (net.bytes_sent - prev_net.bytes_sent) + (
                 net.bytes_recv - prev_net.bytes_recv
             )
             prev_net = net
-
             net_mbps = byte_diff * 8 / (1_000_000 * interval)
-
+            net_mbps = round(net_mbps, 2)
             db: Session = SessionLocal()
             try:
                 users = [u.username for u in db.query(User).all()]
