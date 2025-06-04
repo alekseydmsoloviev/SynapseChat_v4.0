@@ -97,6 +97,7 @@ def collect_snapshot() -> Dict[str, object]:
         db.close()
 
 
+
 def collect_chat_summary(db: Session, session: SessionModel) -> Dict[str, object]:
     """Return session info with message count and last timestamp."""
     last_msg = (
