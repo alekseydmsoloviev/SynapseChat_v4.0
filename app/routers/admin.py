@@ -609,6 +609,7 @@ async def admin_ws(websocket: WebSocket):
                 }
             )
             await asyncio.sleep(interval)
+
     except WebSocketDisconnect:
         pass
     finally:
