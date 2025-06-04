@@ -97,8 +97,36 @@ def collect_snapshot() -> Dict[str, object]:
         db.close()
 
 
-def collect_detailed_snapshot() -> Dict[str, object]:
-    """Return extended snapshot with user and chat statistics."""
+
+def collect_chat_summary(db: Session, session: SessionModel) -> Dict[str, object]:
+    """Return session info with message count and last timestamp."""
+    last_msg = (
+        db.query(Message)
+        .filter(
+            Message.session_id == session.session_id,
+            Message.username == session.username,
+        )
+        .order_by(Message.timestamp.desc())
+        .first()
+    )
+    count = (
+        db.query(Message)
+        .filter(
+            Message.session_id == session.session_id,
+            Message.username == session.username,
+        )
+        .count()
+    )
+    last_ts = last_msg.timestamp.isoformat() if last_msg else None
+    return {
+        **serialize_session(session),
+        "message_count": count,
+        "last_message": last_ts,
+    }
+
+
+def collect_overview() -> Dict[str, object]:
+    """Return snapshot with detailed user info and chat summaries."""
     db: Session = SessionLocal()
     try:
         today = date.today()
@@ -122,31 +150,9 @@ def collect_detailed_snapshot() -> Dict[str, object]:
                 }
             )
 
-        chats: List[Dict[str, object]] = []
-        sessions = db.query(SessionModel).all()
-        for s in sessions:
-            msg_q = (
-                db.query(Message)
-                .filter(
-                    Message.session_id == s.session_id,
-                    Message.username == s.username,
-                )
-                .order_by(Message.timestamp.asc())
-            )
-            msgs = msg_q.all()
-            serialized = [serialize_message(m) for m in msgs]
-            last = max((m.timestamp for m in msgs), default=None)
-            chats.append(
-                {
-                    "session_id": s.session_id,
-                    "username": s.username,
-                    "title": s.title,
-                    "created_at": s.created_at.isoformat() if s.created_at else None,
-                    "last_message": last.isoformat() if last else None,
-                    "messages": serialized,
-                    "message_count": len(msgs),
-                }
-            )
+        chats = [
+            collect_chat_summary(db, s) for s in db.query(SessionModel).all()
+        ]
 
         return {"users": users, "chats": chats}
     finally:

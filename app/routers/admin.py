@@ -21,7 +21,8 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import date
 
-from app.utils.db_snapshot import collect_snapshot
+
+from app.utils.db_snapshot import collect_overview, collect_chat_summary
 from app.utils.usage import query_usage
 
 from app.database import SessionLocal
@@ -410,12 +411,25 @@ def api_remove_model(name: str, admin: str = Depends(get_current_admin)):
 
 @router.get("/admin/api/sessions")
 def api_list_sessions(admin: str = Depends(get_current_admin)):
-    """Return list of chat sessions with messages and last timestamp."""
+    """Return list of chat sessions with message counts."""
     db: Session = SessionLocal()
     try:
         sessions = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
-        payload = [collect_chat_messages(db, s) for s in sessions]
+        payload = [collect_chat_summary(db, s) for s in sessions]
         return JSONResponse(payload)
+    finally:
+        db.close()
+
+
+@router.get("/admin/api/sessions/{session_id}")
+def api_get_session(session_id: str, admin: str = Depends(get_current_admin)):
+    """Return full chat history for the given session."""
+    db: Session = SessionLocal()
+    try:
+        session = db.query(SessionModel).filter(SessionModel.session_id == session_id).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return JSONResponse(collect_chat_messages(db, session))
     finally:
         db.close()
 
@@ -549,8 +563,8 @@ async def admin_ws(websocket: WebSocket):
                     "models": models,
                 }
             )
-            snapshot = collect_snapshot()
-            await websocket.send_json({"type": "db_snapshot", "snapshot": snapshot})
+            snapshot = collect_overview()
+            await websocket.send_json({"type": "overview", "snapshot": snapshot})
             await asyncio.sleep(5)
     except WebSocketDisconnect:
         pass
