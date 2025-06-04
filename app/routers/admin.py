@@ -21,6 +21,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import date
 
+from app.utils.db_snapshot import collect_chat_summary
+from app.utils.usage import query_usage, query_usage_all
+
 from app.database import SessionLocal
 from app.models import User, RateLimit, Session as SessionModel, Message
 from app.utils.ollama import (
@@ -281,6 +284,31 @@ def api_list_users(admin: str = Depends(get_current_admin)):
         db.close()
 
 
+@router.get("/admin/api/users/{username}")
+def api_get_user(username: str, admin: str = Depends(get_current_admin)):
+    """Return detailed information for a single user."""
+    db: Session = SessionLocal()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        chat_count = db.query(SessionModel).filter(SessionModel.username == username).count()
+        today = date.today()
+        payload = {
+            "username": user.username,
+            "password": user.password_hash,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "daily_limit": user.daily_limit,
+            "is_admin": user.is_admin,
+            "chat_count": chat_count,
+            "day": query_usage(db, username, today),
+            "total": query_usage(db, username, None),
+        }
+        return JSONResponse(payload)
+    finally:
+        db.close()
+
+
 @router.post("/admin/api/users")
 def api_create_or_update_user(payload: dict, admin: str = Depends(get_current_admin)):
     """Create or update a user."""
@@ -407,12 +435,25 @@ def api_remove_model(name: str, admin: str = Depends(get_current_admin)):
 
 @router.get("/admin/api/sessions")
 def api_list_sessions(admin: str = Depends(get_current_admin)):
-    """Return list of chat sessions with messages and last timestamp."""
+    """Return list of chat sessions with message counts."""
     db: Session = SessionLocal()
     try:
         sessions = db.query(SessionModel).order_by(SessionModel.created_at.desc()).all()
-        payload = [collect_chat_messages(db, s) for s in sessions]
+        payload = [collect_chat_summary(db, s) for s in sessions]
         return JSONResponse(payload)
+    finally:
+        db.close()
+
+
+@router.get("/admin/api/sessions/{session_id}")
+def api_get_session(session_id: str, admin: str = Depends(get_current_admin)):
+    """Return full chat history for the given session."""
+    db: Session = SessionLocal()
+    try:
+        session = db.query(SessionModel).filter(SessionModel.session_id == session_id).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="Session not found")
+        return JSONResponse(collect_chat_messages(db, session))
     finally:
         db.close()
 
@@ -523,32 +564,47 @@ async def admin_ws(websocket: WebSocket):
     await websocket.accept()
     ws_clients.add(websocket)
     try:
+        prev_net = psutil.net_io_counters()
+        interval = 5
         while True:
             cpu = psutil.cpu_percent()
             memory = psutil.virtual_memory().percent
+            disk = psutil.disk_usage("/").percent
+            net = psutil.net_io_counters()
+            byte_diff = (net.bytes_sent - prev_net.bytes_sent) + (
+                net.bytes_recv - prev_net.bytes_recv
+            )
+            prev_net = net
+            net_mbps = byte_diff * 8 / (1_000_000 * interval)
+            net_mbps = round(net_mbps, 2)
             db: Session = SessionLocal()
             try:
                 users = [u.username for u in db.query(User).all()]
-                sessions = [s.session_id for s in db.query(SessionModel).all()]
+                today = date.today()
+                day_total = query_usage_all(db, today)
+                all_total = query_usage_all(db, None)
             finally:
                 db.close()
             try:
                 models = list_installed_models()
             except Exception:
                 models = []
+            port = os.getenv("PORT", "8000")
             await websocket.send_json(
                 {
                     "type": "metrics",
                     "cpu": cpu,
                     "memory": memory,
+                    "network": net_mbps,
+                    "disk": disk,
+                    "day_total": day_total,
+                    "total": all_total,
                     "users": users,
-                    "sessions": sessions,
                     "models": models,
+                    "port": port,
                 }
             )
-            snapshot = collect_snapshot()
-            await websocket.send_json({"type": "db_snapshot", "snapshot": snapshot})
-            await asyncio.sleep(5)
+            await asyncio.sleep(interval)
     except WebSocketDisconnect:
         pass
     finally:
