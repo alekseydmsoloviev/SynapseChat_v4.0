@@ -565,22 +565,22 @@ async def admin_ws(websocket: WebSocket):
     ws_clients.add(websocket)
     try:
         prev_net = psutil.net_io_counters()
+        interval = 5
+
         while True:
             cpu = psutil.cpu_percent()
             memory = psutil.virtual_memory().percent
             disk = psutil.disk_usage("/").percent
             net = psutil.net_io_counters()
-            interval = 5
+
+
             byte_diff = (net.bytes_sent - prev_net.bytes_sent) + (
                 net.bytes_recv - prev_net.bytes_recv
             )
             prev_net = net
-            stats = psutil.net_if_stats()
-            speed = sum(s.speed for s in stats.values() if s.isup and s.speed)
-            if speed:
-                net_percent = min(byte_diff * 8 / (speed * 1_000_000 * interval) * 100, 100)
-            else:
-                net_percent = 0.0
+
+            net_mbps = byte_diff * 8 / (1_000_000 * interval)
+
             db: Session = SessionLocal()
             try:
                 users = [u.username for u in db.query(User).all()]
@@ -599,7 +599,7 @@ async def admin_ws(websocket: WebSocket):
                     "type": "metrics",
                     "cpu": cpu,
                     "memory": memory,
-                    "network": net_percent,
+                    "network": net_mbps,
                     "disk": disk,
                     "day_total": day_total,
                     "total": all_total,
@@ -609,7 +609,6 @@ async def admin_ws(websocket: WebSocket):
                 }
             )
             await asyncio.sleep(interval)
-
     except WebSocketDisconnect:
         pass
     finally:
