@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from datetime import date
 
 from app.utils.db_snapshot import collect_chat_summary
-from app.utils.usage import query_usage, query_usage_all
+from app.utils.usage import query_usage, query_usage_all, get_global_limit
 
 from app.database import SessionLocal
 from app.models import User, RateLimit, Session as SessionModel, Message
@@ -314,7 +314,10 @@ def api_create_or_update_user(payload: dict, admin: str = Depends(get_current_ad
     """Create or update a user."""
     username = payload.get("username")
     password = payload.get("password")
-    daily_limit = int(payload.get("daily_limit", 1000))
+    limit_val = payload.get("daily_limit")
+    if limit_val is None:
+        limit_val = get_global_limit()
+    daily_limit = int(limit_val)
     if not username or not password:
         raise HTTPException(status_code=400, detail="username and password required")
     db: Session = SessionLocal()
@@ -371,6 +374,13 @@ def api_update_config(payload: dict, admin: str = Depends(get_current_admin)):
     open(ENV_PATH, "a").close()
     set_key(ENV_PATH, "PORT", port)
     set_key(ENV_PATH, "DAILY_LIMIT", limit)
+    # propagate new limit to all non-admin users
+    db: Session = SessionLocal()
+    try:
+        db.query(User).filter(User.is_admin == False).update({User.daily_limit: int(limit)})
+        db.commit()
+    finally:
+        db.close()
     return JSONResponse({"message": "Configuration updated."})
 
 
@@ -566,13 +576,11 @@ async def admin_ws(websocket: WebSocket):
     try:
         prev_net = psutil.net_io_counters()
         interval = 5
-
         while True:
             cpu = psutil.cpu_percent()
             memory = psutil.virtual_memory().percent
             disk = psutil.disk_usage("/").percent
             net = psutil.net_io_counters()
-
             byte_diff = (net.bytes_sent - prev_net.bytes_sent) + (
                 net.bytes_recv - prev_net.bytes_recv
             )
@@ -591,6 +599,7 @@ async def admin_ws(websocket: WebSocket):
                 models = list_installed_models()
             except Exception:
                 models = []
+            load_dotenv(ENV_PATH)
             port = os.getenv("PORT", "8000")
             await websocket.send_json(
                 {
