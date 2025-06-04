@@ -19,3 +19,12 @@ def query_usage(db: Session, username: str, since: date | None) -> int:
         q = q.filter(RateLimit.date >= since)
     result = q.scalar()
     return int(result or 0)
+
+
+def query_usage_all(db: Session, since: date | None) -> int:
+    """Return total requests made by all users since the given date."""
+    q = db.query(func.sum(RateLimit.count))
+    if since is not None:
+        q = q.filter(RateLimit.date >= since)
+    result = q.scalar()
+    return int(result or 0)
