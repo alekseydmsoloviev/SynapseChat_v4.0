@@ -117,8 +117,25 @@ def collect_chat_summary(db: Session, session: SessionModel) -> Dict[str, object
         .count()
     )
     last_ts = last_msg.timestamp.isoformat() if last_msg else None
+    title = session.title
+    if title is None:
+        first_msg = (
+            db.query(Message)
+            .filter(
+                Message.session_id == session.session_id,
+                Message.username == session.username,
+                Message.role == "user",
+            )
+            .order_by(Message.timestamp.asc())
+            .first()
+        )
+        if first_msg:
+            title = first_msg.content
     return {
-        **serialize_session(session),
+        "session_id": session.session_id,
+        "username": session.username,
+        "title": title,
+        "created_at": session.created_at.isoformat() if session.created_at else None,
         "message_count": count,
         "last_message": last_ts,
     }

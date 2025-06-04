@@ -78,8 +78,13 @@ def send_message(
         .first()
     )
     if not session:
-        session = SessionModel(session_id=session_id, username=username)
+        session = SessionModel(
+            session_id=session_id, username=username, title=payload["prompt"]
+        )
         db.add(session)
+        db.commit()
+    elif session.title is None:
+        session.title = payload["prompt"]
         db.commit()
 
     # Сохраняем сообщение пользователя
