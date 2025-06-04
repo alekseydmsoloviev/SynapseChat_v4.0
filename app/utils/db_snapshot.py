@@ -95,3 +95,69 @@ def collect_snapshot() -> Dict[str, object]:
         }
     finally:
         db.close()
+
+
+def collect_chat_summary(db: Session, session: SessionModel) -> Dict[str, object]:
+    """Return session info with message count and last timestamp."""
+    last_msg = (
+        db.query(Message)
+        .filter(
+            Message.session_id == session.session_id,
+            Message.username == session.username,
+        )
+        .order_by(Message.timestamp.desc())
+        .first()
+    )
+    count = (
+        db.query(Message)
+        .filter(
+            Message.session_id == session.session_id,
+            Message.username == session.username,
+        )
+        .count()
+    )
+    last_ts = last_msg.timestamp.isoformat() if last_msg else None
+    return {
+        **serialize_session(session),
+        "message_count": count,
+        "last_message": last_ts,
+    }
+
+
+def collect_overview() -> Dict[str, object]:
+    """Return snapshot with detailed user info and chat summaries."""
+    db: Session = SessionLocal()
+    try:
+        today = date.today()
+        users: List[Dict[str, object]] = []
+        for u in db.query(User).all():
+            chat_count = (
+                db.query(SessionModel)
+                .filter(SessionModel.username == u.username)
+                .count()
+            )
+            users.append(
+                {
+                    "username": u.username,
+                    "password": u.password_hash,
+                    "created_at": u.created_at.isoformat() if u.created_at else None,
+                    "daily_limit": u.daily_limit,
+                    "is_admin": u.is_admin,
+                    "chat_count": chat_count,
+                    "day": query_usage(db, u.username, today),
+                    "total": query_usage(db, u.username, None),
+                }
+            )
+
+        chats = [
+            collect_chat_summary(db, s) for s in db.query(SessionModel).all()
+        ]
+
+        return {"users": users, "chats": chats}
+    finally:
+        db.close()
+
+
+def collect_detailed_snapshot() -> Dict[str, object]:
+    """Backward-compatible alias for ``collect_overview``."""
+    return collect_overview()
