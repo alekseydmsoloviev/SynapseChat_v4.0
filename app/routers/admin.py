@@ -372,6 +372,13 @@ def api_update_config(payload: dict, admin: str = Depends(get_current_admin)):
     open(ENV_PATH, "a").close()
     set_key(ENV_PATH, "PORT", port)
     set_key(ENV_PATH, "DAILY_LIMIT", limit)
+    # propagate new limit to all non-admin users
+    db: Session = SessionLocal()
+    try:
+        db.query(User).filter(User.is_admin == False).update({User.daily_limit: int(limit)})
+        db.commit()
+    finally:
+        db.close()
     return JSONResponse({"message": "Configuration updated."})
 
 
@@ -590,6 +597,7 @@ async def admin_ws(websocket: WebSocket):
                 models = list_installed_models()
             except Exception:
                 models = []
+
             load_dotenv(ENV_PATH, override=True)
             port = os.getenv("PORT", "8000")
             await websocket.send_json(
