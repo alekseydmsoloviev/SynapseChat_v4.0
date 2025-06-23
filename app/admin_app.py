@@ -2,6 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+import os
 from app.routers.admin import router as admin_router
 
 app = FastAPI(
@@ -20,7 +21,8 @@ app.add_middleware(
 )
 
 # Статика для CSS/JS
-app.mount("/static", StaticFiles(directory="static"), name="static")
+STATIC_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Подключаем роутер админ-панели
 app.include_router(admin_router)
