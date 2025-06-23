@@ -1,27 +1,50 @@
 import os
 import importlib
+import multiprocessing
+import socket
+import sys
+import time
 from unittest.mock import patch, MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
+import requests
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-@pytest.fixture
-def clients(tmp_path):
-    # prepare environment and database
+# Helper to get a random free port for running test servers
+
+def _get_free_port() -> int:
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def _run_server(app, port: int) -> None:
+    import uvicorn
+
+    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning", access_log=False)
+
+
+@pytest.fixture(scope="module")
+def clients(tmp_path_factory):
+    tmp_path = tmp_path_factory.mktemp("data")
     db_file = tmp_path / "test.db"
     os.environ["DATABASE_URL"] = f"sqlite:///{db_file}"
     os.environ["LOG_PATH"] = str(tmp_path / "test.log")
 
-    # reload database module with new DB URL
     import app.database as database
     importlib.reload(database)
     from app.database import Base, engine, SessionLocal
+    from app import models  # ensure models are registered
+
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
-    # create initial users
     from app.models import User
+
     db = SessionLocal()
     db.add(User(username="admin", password_hash="admin", is_admin=True, daily_limit=0))
     db.add(User(username="user", password_hash="user", is_admin=False, daily_limit=5))
@@ -51,106 +74,101 @@ def clients(tmp_path):
     importlib.reload(app.api_app)
     importlib.reload(app.admin_app)
 
-    api_client = TestClient(app.api_app.app)
-    admin_client = TestClient(app.admin_app.app)
+    api_port = _get_free_port()
+    admin_port = _get_free_port()
 
-    yield api_client, admin_client
+    api_proc = multiprocessing.Process(target=_run_server, args=(app.api_app.app, api_port))
+    admin_proc = multiprocessing.Process(target=_run_server, args=(app.admin_app.app, admin_port))
+    api_proc.start()
+    admin_proc.start()
+    time.sleep(1)
 
-    api_client.close()
-    admin_client.close()
+    yield f"http://127.0.0.1:{api_port}", f"http://127.0.0.1:{admin_port}"
+
+    api_proc.terminate()
+    admin_proc.terminate()
+    api_proc.join()
+    admin_proc.join()
     for p in patchers:
         p.stop()
+
 
 def test_api_endpoints(clients):
     api, _ = clients
     auth = ("user", "user")
 
-    # ping
-    resp = api.get("/ping", auth=auth)
+    resp = requests.get(api + "/ping", auth=auth)
     assert resp.status_code == 200
     assert resp.json()["message"] == "pong"
 
-    # chat
-    resp = api.post("/chat/123", json={"model": "m", "prompt": "hi"}, auth=auth)
+    resp = requests.post(api + "/chat/123", json={"model": "m", "prompt": "hi"}, auth=auth)
     assert resp.status_code == 200
     assert resp.json()["response"] == "hi"
 
-    # history list
-    resp = api.get("/history/sessions", auth=auth)
+    resp = requests.get(api + "/history/sessions", auth=auth)
     assert resp.status_code == 200
     sessions = resp.json()
     assert len(sessions) == 1
 
-    # history details
-    resp = api.get(f"/history/123", auth=auth)
+    resp = requests.get(api + "/history/123", auth=auth)
     assert resp.status_code == 200
     messages = resp.json()
     assert len(messages) == 2
 
-    # limits
-    resp = api.get("/limits", auth=auth)
+    resp = requests.get(api + "/limits", auth=auth)
     assert resp.status_code == 200
     assert resp.json()["daily_limit"] == 5
+
 
 def test_admin_endpoints(clients):
     api, admin = clients
     user_auth = ("user", "user")
     admin_auth = ("admin", "admin")
 
-    # prepare data via chat
-    api.post("/chat/abc", json={"model": "m", "prompt": "hello"}, auth=user_auth)
+    requests.post(api + "/chat/abc", json={"model": "m", "prompt": "hello"}, auth=user_auth)
 
-    # users list
-    resp = admin.get("/admin/api/users", auth=admin_auth)
+    resp = requests.get(admin + "/admin/api/users", auth=admin_auth)
     assert resp.status_code == 200
     assert any(u["username"] == "user" for u in resp.json())
 
-    # get user
-    resp = admin.get("/admin/api/users/user", auth=admin_auth)
+    resp = requests.get(admin + "/admin/api/users/user", auth=admin_auth)
     assert resp.status_code == 200
     assert resp.json()["username"] == "user"
 
-    # create/update user
-    resp = admin.post(
-        "/admin/api/users",
+    resp = requests.post(
+        admin + "/admin/api/users",
         json={"username": "temp", "password": "x", "daily_limit": 1},
         auth=admin_auth,
     )
     assert resp.status_code == 200
 
-    # delete user
-    resp = admin.delete("/admin/api/users/temp", auth=admin_auth)
+    resp = requests.delete(admin + "/admin/api/users/temp", auth=admin_auth)
     assert resp.status_code == 200
 
-    # config endpoints
-    resp = admin.get("/admin/api/config", auth=admin_auth)
+    resp = requests.get(admin + "/admin/api/config", auth=admin_auth)
     assert resp.status_code == 200
-    resp = admin.post(
-        "/admin/api/config",
+    resp = requests.post(
+        admin + "/admin/api/config",
         json={"port": "8000", "daily_limit": "10"},
         auth=admin_auth,
     )
     assert resp.status_code == 200
+    assert requests.get(admin + "/admin/api/models", auth=admin_auth).json() == ["m"]
+    assert requests.get(admin + "/admin/api/models/available", auth=admin_auth).json() == ["m"]
+    assert requests.get(admin + "/admin/api/models/m/variants", auth=admin_auth).json() == ["m:latest"]
+    assert requests.post(admin + "/admin/api/models/m/install", auth=admin_auth).status_code == 200
+    assert requests.delete(admin + "/admin/api/models/m", auth=admin_auth).status_code == 200
 
-    # model endpoints
-    assert admin.get("/admin/api/models", auth=admin_auth).json() == ["m"]
-    assert admin.get("/admin/api/models/available", auth=admin_auth).json() == ["m"]
-    assert admin.get("/admin/api/models/m/variants", auth=admin_auth).json() == ["m:latest"]
-    assert admin.post("/admin/api/models/m/install", auth=admin_auth).status_code == 200
-    assert admin.delete("/admin/api/models/m", auth=admin_auth).status_code == 200
-
-    # sessions endpoints
-    resp = admin.get("/admin/api/sessions", auth=admin_auth)
+    resp = requests.get(admin + "/admin/api/sessions", auth=admin_auth)
     assert resp.status_code == 200
-    assert len(resp.json()) == 1
+    assert any(s["session_id"] == "abc" for s in resp.json())
 
-    resp = admin.get("/admin/api/sessions/abc", auth=admin_auth)
+    resp = requests.get(admin + "/admin/api/sessions/abc", auth=admin_auth)
     assert resp.status_code == 200
-    resp = admin.delete("/admin/api/sessions/abc", auth=admin_auth)
+    resp = requests.delete(admin + "/admin/api/sessions/abc", auth=admin_auth)
     assert resp.status_code == 200
 
-    # restart, status, logs, usage
-    assert admin.post("/admin/api/restart", auth=admin_auth).status_code == 200
-    assert admin.get("/admin/api/status", auth=admin_auth).status_code == 200
-    assert "log" in admin.get("/admin/api/logs", auth=admin_auth).text
-    assert admin.get("/admin/api/usage", auth=admin_auth).status_code == 200
+    assert requests.post(admin + "/admin/api/restart", auth=admin_auth).status_code == 200
+    assert requests.get(admin + "/admin/api/status", auth=admin_auth).status_code == 200
+    assert "log" in requests.get(admin + "/admin/api/logs", auth=admin_auth).text
+    assert requests.get(admin + "/admin/api/usage", auth=admin_auth).status_code == 200
