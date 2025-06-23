@@ -153,7 +153,6 @@ def test_admin_endpoints(clients):
         auth=admin_auth,
     )
     assert resp.status_code == 200
-
     assert requests.get(admin + "/admin/api/models", auth=admin_auth).json() == ["m"]
     assert requests.get(admin + "/admin/api/models/available", auth=admin_auth).json() == ["m"]
     assert requests.get(admin + "/admin/api/models/m/variants", auth=admin_auth).json() == ["m:latest"]
