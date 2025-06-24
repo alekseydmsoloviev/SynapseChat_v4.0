@@ -3,7 +3,7 @@ import importlib
 import sys
 import base64
 from unittest.mock import patch, MagicMock, AsyncMock
-from fastapi import WebSocketDisconnect
+from fastapi import WebSocketDisconnect, HTTPException
 
 import pytest
 from fastapi.testclient import TestClient
@@ -281,3 +281,51 @@ def test_mobile_ws(clients):
 
     assert "users" in data
     assert "chats" in data
+
+
+def test_admin_logs_not_found(clients, tmp_path):
+    _, admin = clients
+    auth = ("admin", "admin")
+
+    missing = tmp_path / "no.log"
+    prev = os.environ.get("LOG_PATH")
+    os.environ["LOG_PATH"] = str(missing)
+
+    def real_tail(path: str, lines: int) -> str:
+        try:
+            with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                data = f.readlines()
+            return "".join(data[-lines:])
+        except FileNotFoundError:
+            raise HTTPException(status_code=404, detail="Log file not found")
+
+    with patch("app.routers.admin._tail_log", new=real_tail):
+        resp = admin.get("/admin/api/logs", auth=auth)
+
+    if prev is not None:
+        os.environ["LOG_PATH"] = prev
+    else:
+        os.environ.pop("LOG_PATH", None)
+
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Log file not found"
+
+
+def test_model_install_error(clients):
+    _, admin = clients
+    auth = ("admin", "admin")
+    with patch("app.routers.admin.install_model", side_effect=RuntimeError("boom")):
+        resp = admin.post("/admin/api/models/m/install", auth=auth)
+
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "boom"
+
+
+def test_model_remove_error(clients):
+    _, admin = clients
+    auth = ("admin", "admin")
+    with patch("app.routers.admin.remove_model", side_effect=RuntimeError("boom")):
+        resp = admin.delete("/admin/api/models/m", auth=auth)
+
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "boom"
