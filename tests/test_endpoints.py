@@ -169,3 +169,52 @@ def test_delete_history_session(clients):
     resp = api.get("/history/sessions", auth=auth)
     assert resp.status_code == 200
     assert session_id not in [s["session_id"] for s in resp.json()]
+
+
+def test_daily_rate_limit(clients):
+    api, _ = clients
+    auth = ("user", "user")
+
+    from datetime import date
+    from app.database import SessionLocal
+    from app.models import RateLimit, User
+
+    db = SessionLocal()
+    user = db.query(User).filter(User.username == "user").first()
+    limit = user.daily_limit
+    rl = (
+        db.query(RateLimit)
+        .filter(RateLimit.username == "user", RateLimit.date == date.today())
+        .first()
+    )
+    start = rl.count if rl else 0
+    db.close()
+
+    for i in range(limit - start):
+        resp = api.post(f"/chat/limit{i}", json={"model": "m", "prompt": "hi"}, auth=auth)
+        assert resp.status_code == 200
+
+    resp = api.post("/chat/overflow", json={"model": "m", "prompt": "hi"}, auth=auth)
+    assert resp.status_code == 429
+
+
+def test_global_rate_limit(clients):
+    api, _ = clients
+
+    from app.database import SessionLocal
+    from app.models import User
+    from unittest.mock import patch
+
+    db = SessionLocal()
+    db.add(User(username="glob", password_hash="glob", is_admin=False, daily_limit=100))
+    db.commit()
+    db.close()
+
+    auth = ("glob", "glob")
+
+    with patch("app.routers.chat.get_global_limit", return_value=6):
+        resp = api.post("/chat/g1", json={"model": "m", "prompt": "hi"}, auth=auth)
+        assert resp.status_code == 200
+
+        resp = api.post("/chat/g2", json={"model": "m", "prompt": "hi"}, auth=auth)
+        assert resp.status_code == 429
