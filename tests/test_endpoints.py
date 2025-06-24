@@ -1,7 +1,9 @@
 import os
 import importlib
 import sys
-from unittest.mock import patch, MagicMock
+import base64
+from unittest.mock import patch, MagicMock, AsyncMock
+from fastapi import WebSocketDisconnect
 
 import pytest
 from fastapi.testclient import TestClient
@@ -230,3 +232,52 @@ def test_global_rate_limit(clients):
 
         resp = api.post("/chat/g2", json={"model": "m", "prompt": "hi"}, auth=auth)
         assert resp.status_code == 429
+
+
+def test_admin_ws(clients):
+    _, admin = clients
+    auth = base64.b64encode(b"admin:admin").decode()
+    net1 = MagicMock(bytes_sent=0, bytes_recv=0)
+    net2 = MagicMock(bytes_sent=1024, bytes_recv=2048)
+
+    async def fake_sleep(_):
+        raise WebSocketDisconnect()
+
+    with (
+        patch("app.routers.admin.psutil.cpu_percent", return_value=1.0),
+        patch("app.routers.admin.psutil.virtual_memory", return_value=MagicMock(percent=2.0)),
+        patch("app.routers.admin.psutil.disk_usage", return_value=MagicMock(percent=3.0)),
+        patch("app.routers.admin.psutil.net_io_counters", side_effect=[net1, net2]),
+        patch("app.routers.admin.asyncio.sleep", side_effect=fake_sleep),
+    ):
+        with admin.websocket_connect(
+            "/admin/ws", headers={"Authorization": f"Basic {auth}"}
+        ) as ws:
+            data = ws.receive_json()
+
+    assert data["type"] == "metrics"
+    for field in [
+        "cpu",
+        "memory",
+        "network",
+        "disk",
+        "day_total",
+        "total",
+        "users",
+        "models",
+        "port",
+    ]:
+        assert field in data
+
+
+def test_mobile_ws(clients):
+    api, _ = clients
+    async def fake_sleep(_):
+        raise WebSocketDisconnect()
+
+    with patch("app.routers.mobile.asyncio.sleep", side_effect=fake_sleep):
+        with api.websocket_connect("/ws/mobile") as ws:
+            data = ws.receive_json()
+
+    assert "users" in data
+    assert "chats" in data
