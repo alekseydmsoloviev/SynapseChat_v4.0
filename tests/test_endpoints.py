@@ -146,6 +146,18 @@ def test_admin_endpoints(clients):
     assert "log" in admin.get("/admin/api/logs", auth=admin_auth).text
     assert admin.get("/admin/api/usage", auth=admin_auth).status_code == 200
 
+
+def test_admin_wrong_password(clients):
+    _, admin = clients
+    resp = admin.get("/admin/api/users", auth=("admin", "wrong"))
+    assert resp.status_code == 401
+
+
+def test_admin_non_admin_user(clients):
+    _, admin = clients
+    resp = admin.get("/admin/api/users", auth=("user", "user"))
+    assert resp.status_code == 403
+
 def test_delete_history_session(clients):
     api, _ = clients
     auth = ("user", "user")
