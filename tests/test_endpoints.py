@@ -145,3 +145,27 @@ def test_admin_endpoints(clients):
     assert admin.get("/admin/api/status", auth=admin_auth).status_code == 200
     assert "log" in admin.get("/admin/api/logs", auth=admin_auth).text
     assert admin.get("/admin/api/usage", auth=admin_auth).status_code == 200
+
+def test_delete_history_session(clients):
+    api, _ = clients
+    auth = ("user", "user")
+
+    session_id = "deltest"
+    # Create a new chat session
+    resp = api.post(f"/chat/{session_id}", json={"model": "m", "prompt": "hi"}, auth=auth)
+    assert resp.status_code == 200
+
+    # Ensure session exists
+    resp = api.get(f"/history/{session_id}", auth=auth)
+    assert resp.status_code == 200
+
+    # Delete the session
+    resp = api.delete(f"/history/{session_id}", auth=auth)
+    assert resp.status_code == 200
+
+    # Verify session and messages removed
+    resp = api.get(f"/history/{session_id}", auth=auth)
+    assert resp.status_code == 404
+    resp = api.get("/history/sessions", auth=auth)
+    assert resp.status_code == 200
+    assert session_id not in [s["session_id"] for s in resp.json()]
