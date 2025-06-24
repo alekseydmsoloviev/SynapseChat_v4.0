@@ -1,32 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
   <component name="ChangeListManager">
-    <list default="true" id="c4db08e8-65ac-4702-8235-c7bc6bd15ae2" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.env" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/SynapseChat_v4.0.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/admin_app.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/api_app.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/database.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/main.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/models.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/routers/admin.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/routers/auth.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/routers/chat.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/routers/history.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/routers/limits.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/routers/models.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/app/utils/ollama.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/cli.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/debug_db.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/admin.js" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/static/styles.css" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/templates/admin.html" afterDir="false" />
+    <list default="true" id="c4db08e8-65ac-4702-8235-c7bc6bd15ae2" name="Changes" comment="1234">
+      <change beforePath="$PROJECT_DIR$/.env" beforeDir="false" afterPath="$PROJECT_DIR$/.env" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -36,9 +17,21 @@
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 6
-}]]></component>
+  <component name="GitHubPullRequestSearchHistory">{
+  &quot;lastFilter&quot;: {
+    &quot;state&quot;: &quot;OPEN&quot;,
+    &quot;assignee&quot;: &quot;alekseydmsoloviev&quot;
+  }
+}</component>
+  <component name="GithubPullRequestsUISettings">{
+  &quot;selectedUrlAndAccountId&quot;: {
+    &quot;url&quot;: &quot;https://github.com/alekseydmsoloviev/SynapseChat_v4.0.git&quot;,
+    &quot;accountId&quot;: &quot;2a1b8c0c-748c-47cc-b4a4-c3b8c5f379ce&quot;
+  }
+}</component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6
+}</component>
   <component name="ProjectId" id="2xvYE82mIPNjKWeN9BqkYyUlI9x" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
@@ -47,6 +40,10 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "Python tests.Python tests in test_endpoints.py.executor": "Run",
+    "Python.cli.executor": "Run",
+    "Python.test_endpoints.executor": "Run",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.git.unshallow": "true",
     "git-widget-placeholder": "main",
@@ -80,11 +77,52 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1748819899291</updated>
-      <workItem from="1748819900302" duration="319000" />
+      <workItem from="1748819900302" duration="17583000" />
+      <workItem from="1748930649607" duration="6929000" />
+      <workItem from="1748963071689" duration="23095000" />
+      <workItem from="1749039163708" duration="608000" />
+      <workItem from="1749048542216" duration="36508000" />
+      <workItem from="1749121535034" duration="9389000" />
+      <workItem from="1749195952013" duration="2202000" />
+      <workItem from="1749246717280" duration="658000" />
+      <workItem from="1749387847084" duration="30000" />
+      <workItem from="1749418630154" duration="604000" />
+      <workItem from="1749449091251" duration="16000" />
+      <workItem from="1750639522119" duration="892000" />
+      <workItem from="1750683957934" duration="1554000" />
     </task>
+    <task id="LOCAL-00001" summary="1234">
+      <option name="closed" value="true" />
+      <created>1748820367196</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1748820367196</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="1234" />
+    <option name="LAST_COMMIT_MESSAGE" value="1234" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/SynapseChat_v4_0$.coverage" NAME=" Coverage Results" MODIFIED="1750690907054" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
+    <SUITE FILE_PATH="coverage/SynapseChat_v4_0$test_endpoints.coverage" NAME="test_endpoints Coverage Results" MODIFIED="1750684769446" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/tests" />
+    <SUITE FILE_PATH="coverage/SynapseChat_v4_0$cli.coverage" NAME="cli Coverage Results" MODIFIED="1749121564049" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>
